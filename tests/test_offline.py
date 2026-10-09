@@ -71,6 +71,30 @@ class TestScreenReaderRules(unittest.TestCase):
     def test_modes_registered(self):
         self.assertEqual(set(render.MODES), {"screen-reader", "large-print", "plain"})
 
+    def test_boundary_prefix_uses_colon_not_period(self):
+        """读屏下「请注意。内容」会读成两句断裂的话，必须用冒号连成从属关系。"""
+        o = render.Out("screen-reader")
+        o.boundary("数据边界说明。")
+        line = [x for x in o.lines if "请注意" in x][0]
+        self.assertIn("请注意：", line)
+        self.assertNotIn("请注意。", line)
+
+    def test_warn_prefix_uses_colon_not_period(self):
+        o = render.Out("screen-reader")
+        o.warn("重要内容。")
+        line = [x for x in o.lines if "重要提示" in x][0]
+        self.assertIn("重要提示：", line)
+        self.assertNotIn("重要提示。", line)
+
+    def test_no_double_punctuation_after_prefix(self):
+        """前缀自身不带句末标点时，内容也不应出现「。 ，」这类叠加。"""
+        o = render.Out("screen-reader")
+        o.boundary("本工具为参赛作品。")
+        o.warn("请确认门店营业状态。")
+        body = "\n".join(o.lines)
+        for bad in ("。 ，", "。 。", "：，", "：。"):
+            self.assertNotIn(bad, body)
+
 
 class TestJsonExtraction(unittest.TestCase):
     def test_embedded_raw_newline(self):

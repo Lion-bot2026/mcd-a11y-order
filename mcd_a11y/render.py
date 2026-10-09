@@ -184,13 +184,15 @@ class Out:
     def boundary(self, text: str) -> None:
         """数据边界声明 —— 三种模式下都必须显著出现，不可省略。"""
         if self.mode == "screen-reader":
-            self._add(f"  请注意。{text}")
+            # 冒号而非句号：让读屏听感上是「提示语 + 内容」的从属关系，
+            # 而不是两句互相独立的句子。
+            self._add(f"  请注意：{text}")
         else:
             self._add(f"> {text}")
 
     def warn(self, text: str) -> None:
         if self.mode == "screen-reader":
-            self._add(f"  重要提示。{text}")
+            self._add(f"  重要提示：{text}")
         else:
             self._add(f"**{text}**")
 
