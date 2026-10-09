@@ -1,6 +1,9 @@
 # 凭据 —— 绝不入库
 .env
 .env.*
+# 但 .env.example 是模板（只有占位符、无真实值），必须入库。
+# 少了这一行，.env.* 会把它一并忽略，重建仓库时会静默丢文件。
+!.env.example
 *.token
 mcp-config.json
 .secrets/
