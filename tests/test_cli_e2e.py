@@ -315,3 +315,80 @@ def _expect_systemexit():
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestComplianceWording(unittest.TestCase):
+    """官方红线禁止「侮辱、诋毁、讽刺、贬低麦当劳品牌、产品及形象」。
+
+    因此工具的措辞只能是「数值 vs 参考值」的中性陈述，
+    不能出现给产品定性的词。这是硬约束，用测试锁住。
+    """
+
+    BANNED = ("不建议", "超标", "达标的仅", " unhealthy", "垃圾食品")
+
+    def _assert_neutral(self, out: str, label: str) -> None:
+        for bad in self.BANNED:
+            self.assertNotIn(bad, out, f"{label} 含给产品定性的措辞 {bad!r}")
+
+    def test_every_command_declares_non_official(self):
+        """每次输出首行都要声明非官方产品，不能只在文档末尾写一次。"""
+        for argv in (["demo", "--mode", "screen-reader"],
+                     ["profiles", "--mode", "screen-reader"],
+                     ["plan", "--demo", "--mode", "screen-reader"],
+                     ["stores", "--demo", "--mode", "screen-reader"],
+                     ["tweak", "--demo", "--mode", "screen-reader"]):
+            code, out = run(argv)
+            self.assertEqual(code, 0, f"{argv} 应可运行")
+            head = out.strip().splitlines()[0]
+            self.assertIn("非麦当劳官方产品", head,
+                          f"{argv} 首行必须声明非官方产品")
+
+    def test_output_wording_is_neutral(self):
+        for argv in (["demo", "--mode", "screen-reader"],
+                     ["demo", "--mode", "plain"],
+                     ["plan", "--demo", "--mode", "screen-reader"],
+                     ["plan", "--demo", "--mode", "plain"]):
+            code, out = run(argv)
+            self.assertEqual(code, 0)
+            self._assert_neutral(out, f"{argv} 的输出")
+
+    def test_reference_value_is_stated(self):
+        """判定必须给出具体参考值，让用户自己判断，而不是替产品定性。"""
+        code, out = run(["plan", "--demo", "--profile", "sodium",
+                         "--mode", "screen-reader"])
+        self.assertEqual(code, 0)
+        self.assertIn("参考值", out)
+
+    def test_disclaimer_present_everywhere(self):
+        for argv in (["demo", "--mode", "screen-reader"],
+                     ["profiles", "--mode", "screen-reader"],
+                     ["plan", "--demo", "--mode", "screen-reader"]):
+            code, out = run(argv)
+            self.assertEqual(code, 0)
+            self.assertIn("不构成医疗", out, f"{argv} 缺免责声明")
+
+
+class TestReadmeCompliance(unittest.TestCase):
+    """README 也要过合规自查 —— 它是最容易被评审逐字看的地方。"""
+
+    ROOT2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def test_readme_has_disclaimer_on_first_screen(self):
+        text = open(os.path.join(self.ROOT2, "README.md"),
+                    encoding="utf-8").read()
+        head = text.split("## 30 秒上手")[0]
+        self.assertIn("非麦当劳官方产品", head)
+        self.assertIn("不构成医疗", head)
+
+    def test_readme_avoids_product_qualification(self):
+        text = open(os.path.join(self.ROOT2, "README.md"),
+                    encoding="utf-8").read()
+        for bad in ("87% 超标", "不建议"):
+            self.assertNotIn(bad, text,
+                             f"README 含给产品定性的措辞 {bad!r}")
+
+    def test_readme_keeps_data_facts(self):
+        """改措辞不能删信息量：核心数据事实必须仍在。"""
+        text = open(os.path.join(self.ROOT2, "README.md"),
+                    encoding="utf-8").read()
+        for keep in ("160", "15 款", "2 款", "参考值"):
+            self.assertIn(keep, text, f"README 丢失了关键信息 {keep!r}")

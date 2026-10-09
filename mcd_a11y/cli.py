@@ -24,6 +24,13 @@ from .render import DISCLAIMER, Out, int_to_cn, money, money_to_cn, unit
 APP = "mcd-a11y"
 # 门店已打烊 / 不在营业时间（实测业务码），plan 会自动切换下一家门店
 CLOSED_STORE_CODE = 600057
+# 每次输出首行必带：声明这是第三方参赛作品，结论不构成专业建议。
+# 官方合规红线禁止贬低品牌与产品，因此工具只陈述数值与参考值的关系，
+# 不对产品本身作评价 —— 这句话要出现在每一次输出里，而不只是文档末尾。
+NOT_OFFICIAL_NOTE = (
+    "本工具为 M-CODE 参赛作品，非麦当劳官方产品。"
+    "以下内容只陈述数值与参考值的高低关系，不对产品本身作评价。"
+)
 NO_FACILITY_NOTE = (
     "麦当劳 MCP 不提供门店无障碍设施信息（坡道、无障碍卫生间、低位柜台等），"
     "本工具无法核实，请到店前致电门店确认。"
@@ -35,7 +42,15 @@ NO_FACILITY_NOTE = (
 # --------------------------------------------------------------------------
 
 def _out(mode: str) -> Out:
-    return Out(mode)
+    """新建输出器，并在首行带上非官方声明。
+
+    官方合规红线禁止贬低品牌与产品，因此每次输出都必须让读者先知道
+    这是第三方参赛作品、结论不构成专业建议 —— 而不是只在文档末尾
+    写一次免责声明。
+    """
+    o = Out(mode)
+    o.boundary(NOT_OFFICIAL_NOTE)
+    return o
 
 
 def _open_store_note(o: Out, s, index: int = 1, total: int | None = None) -> None:
@@ -77,7 +92,7 @@ def _pick_combo(verdicts, size: int = 2, limit: float | None = None):
     1. 避免「薯条小份 + 薯条大份」这种同款不同规格的搭配。
     2. **合计不得超过本餐额度** —— 实测发现早期版本只校验单项，
        会推荐「311 + 422 = 733 毫克」这种合计超出 666.7 毫克额度的组合。
-       对限钠人群来说，这种「每项都合格、加起来超标」的建议比不推荐更危险。
+       对限钠人群来说，这种「每项都合格、加起来超过参考值」的建议比不给建议更危险。
 
     额度为 None 时只做第 1 条约束。
     """
@@ -562,14 +577,14 @@ def cmd_demo(args) -> int:
             o.blank()
 
     o.blank()
-    o.step("钠含量最高的几项（不建议）。")
+    o.step("钠含量最高的几项（高于本餐参考值）。")
     over = [x for x in meal if x.status == "over"][-3:]
     for i, v in enumerate(over, 1):
         n = v.link.nutrition
         o.item(i, f"{v.link.menu_item.name}。"
                   f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。"
                   f"钠 {unit(args.mode, n.sodium_mg, '毫克', 'mg')}。"
-                  f"超出本餐额度 {unit(args.mode, v.over_by, '毫克', 'mg')}。不建议",
+                  f"高于本餐参考值 {unit(args.mode, v.over_by, '毫克', 'mg')}。请换其他选择",
                total=len(over))
 
     o.blank()
