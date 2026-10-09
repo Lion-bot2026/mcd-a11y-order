@@ -251,10 +251,13 @@ class McdMcpClient:
         # structuredContent 也指向这层信封 —— 必须统一剥掉，否则下游解析会静默拿到 0 条。
         if isinstance(obj, dict) and "data" in obj and set(obj) & {"success", "code"}:
             if obj.get("success") is False:
+                # 必须把 code 传进去 —— 否则 McpError.human() 查 ERROR_HINTS
+                # 永远命不中，600057「门店已打烊」等文案就成了死代码。
                 raise McpError(
                     f"{name} 业务失败（code={obj.get('code')}，"
                     f"message={obj.get('message')}）。"
-                    f"常见原因：门店不在营业时间。请换一家营业中的门店重试。")
+                    f"常见原因：门店不在营业时间。请换一家营业中的门店重试。",
+                    code=obj.get("code"))
             return obj["data"]
         return obj
 

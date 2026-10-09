@@ -70,14 +70,19 @@ class MatchLink:
 _FIELD_MAP = {
     "productName": "product_name",
     "energyKcal": "energy_kcal",
-    "energyKJ": "energy_kcal",
-    "energyKj": "energy_kcal",
     "protein": "protein_g",
     "fat": "fat_g",
     "carbohydrate": "carb_g",
     "sodium": "sodium_mg",
     "calcium": "calcium_mg",
 }
+
+# 千焦 → 千卡。官方 TOON 表头同时含 energyKj 与 energyKcal，两者都缺失时
+# 优先用 energyKcal；只有它为空才从 kJ 换算。
+# 绝不能把 kJ 直接当 kcal 用 —— 相差 4.184 倍，会把能量高估到四倍多，
+# 进而污染钠密度、控能量档位与合计能量。
+_KJ_PER_KCAL = 4.184
+_ENERGY_KJ_KEYS = ("energyKJ", "energyKj")
 
 
 def from_toon_rows(rows: Iterable[dict]) -> list[NutritionItem]:
@@ -96,6 +101,13 @@ def from_toon_rows(rows: Iterable[dict]) -> list[NutritionItem]:
             v = coerce_scalar(r.get(src))
             if isinstance(v, (int, float)):
                 data[dst] = float(v)
+        # energyKcal 缺失时才从千焦换算；已有值则绝不覆盖。
+        if data.get("energy_kcal") is None:
+            for k in _ENERGY_KJ_KEYS:
+                kj = coerce_scalar(r.get(k))
+                if isinstance(kj, (int, float)) and kj > 0:
+                    data["energy_kcal"] = round(kj / _KJ_PER_KCAL, 1)
+                    break
         items.append(NutritionItem(**data))
     return items
 

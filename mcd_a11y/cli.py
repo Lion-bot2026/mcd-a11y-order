@@ -15,13 +15,15 @@ from . import demo_data
 from . import render
 from .menu import (SODIUM_HINT_DISCLAIMER, is_light_food, parse_meals, parse_modifications,
                    parse_stores, rank_stores, sodium_hint)
-from .mcp_client import McpError, McdMcpClient
+from .mcp_client import ERROR_HINTS, McpError, McdMcpClient
 from .nutrition import evaluate, link_menu_nutrition
 from .parser import parse_toon
 from .profiles import EXCLUDED_NOTE, PROFILES, describe_profiles, get_profile
-from .render import Out, int_to_cn, money, money_to_cn, unit
+from .render import DISCLAIMER, Out, int_to_cn, money, money_to_cn, unit
 
 APP = "mcd-a11y"
+# 门店已打烊 / 不在营业时间（实测业务码），plan 会自动切换下一家门店
+CLOSED_STORE_CODE = 600057
 NO_FACILITY_NOTE = (
     "麦当劳 MCP 不提供门店无障碍设施信息（坡道、无障碍卫生间、低位柜台等），"
     "本工具无法核实，请到店前致电门店确认。"
@@ -173,6 +175,41 @@ def cmd_stores(args) -> int:
 # 命令：plan（主命令）
 # --------------------------------------------------------------------------
 
+def _fetch_menu_skipping_closed(client, stores, args, o):
+    """逐店重试拉菜单：门店打烊（业务码 600057）时自动切到下一家。
+
+    最多试 3 家。全失败则抛出带说明的 McpError，由main 统一转成
+    「每次输出都带免责声明」的格式。
+    """
+    tried = stores[:3]
+    last: McpError | None = None
+    for idx, s in enumerate(tried):
+        try:
+            raw = client.call_business("query-meals", {
+                "storeCode": s.store_code, "orderType": 1, "beType": args.be_type,
+            })
+        except McpError as e:
+            if e.code == CLOSED_STORE_CODE:
+                last = e
+                if idx + 1 < len(tried):
+                    o.note(f"门店 {s.store_name} 当前已打烊，"
+                           f"自动切换到下一家营业中门店。")
+                    o.blank()
+                continue
+            raise
+        else:
+            if idx > 0:
+                o.note(f"已切换到门店 {s.store_name}。")
+                o.blank()
+            return s, parse_meals(raw, store_code=s.store_code)
+    raise McpError(
+        f"附近 {len(tried)} 家门店当前均无法下单"
+        f"（{last if last else '原因未知'}），"
+        f"请稍后再试或换一个地点关键词。",
+        code=CLOSED_STORE_CODE,
+    )
+
+
 def cmd_plan(args) -> int:
     o = _out(args.mode)
     profile = get_profile(args.profile)
@@ -181,6 +218,7 @@ def cmd_plan(args) -> int:
     if args.demo:
         o.boundary(demo_data.DEMO_BANNER)
         stores = rank_stores(demo_data.demo_stores(), open_first=True)
+        client = None
     else:
         client = McdMcpClient()
         stores = parse_stores(client.call_business("query-nearby-stores", {
@@ -190,9 +228,9 @@ def cmd_plan(args) -> int:
         stores = rank_stores(stores, open_first=True)
 
     if not stores:
-        print("未检索到门店，请检查城市名与关键词（两者必须同时提供）。")
+        o.boundary("未检索到门店，请检查城市名与关键词（两者必须同时提供）。")
+        print(o.text())
         return 1
-    store = stores[0]
 
     o.step(f"第一步，选门店。共 {len(stores)} 家，优先营业中、按距离由近到远。")
     for i, s in enumerate(stores[:3], 1):
@@ -202,26 +240,36 @@ def cmd_plan(args) -> int:
 
     # ---- 营养 + 菜单 ----
     if args.demo:
+        store = stores[0]
         nutrition = demo_data.load_nutrition()
         menu = demo_data.demo_menu(limit=args.scan)
     else:
-        client = McdMcpClient()
-        toon = client.call_business("list-nutrition-foods", {})
-        nutrition = _nutrition_from(toon)
-        raw_menu = client.call_business("query-meals", {
-            "storeCode": store.store_code, "orderType": 1, "beType": args.be_type,
-        })
-        menu = parse_meals(raw_menu, store_code=store.store_code)
+        nutrition = _nutrition_from(client.call_business("list-nutrition-foods", {}))
+        # 逐店重试：门店可能已打烊（业务码 600057）。对行动不便的用户来说，
+        # 中断在这里等于整个流程失败，所以自动切到下一家营业中门店。
+        store, menu = _fetch_menu_skipping_closed(
+            client, stores, args, o)
 
     links = link_menu_nutrition(menu, nutrition)
 
     # ---- 额度 ----
     limit = _resolve_limit(args, profile)
     if limit is None:
-        o.boundary(
-            f"档位「{profile.label}」需要能量目标才能推导额度，"
-            f"请加 --meal-kcal 指定本餐能量目标，或改用 sodium 档位。"
-        )
+        # 报错文案按档位分支：控能量缺的是「本餐能量目标」，
+        # 而控糖/低脂缺的是「用于推导克数的能量目标」—— 两者不是一回事。
+        if profile.key == "energy":
+            o.boundary(
+                "档位「控能量」需要你指定本餐能量目标才能筛选，"
+                "请加 --meal-kcal 600 这类参数。"
+                "该数字完全来自你的输入，本工具不提供任何默认能量目标。"
+            )
+        else:
+            o.boundary(
+                f"档位「{profile.label}」需要能量目标才能把克数上限推导出来，"
+                f"请加 --meal-kcal 指定本餐能量目标，或改用 sodium 档位"
+                f"（sodium 档不依赖能量目标）。"
+            )
+        # Out.text() 会自动追加免责声明，无需手动加
         print(o.text())
         return 1
 
@@ -232,10 +280,20 @@ def cmd_plan(args) -> int:
         if profile.daily_limit else
         f"第二步，这一餐可以吃什么。当前档位，{profile.label}。本餐额度 {limit:g} {un}。"
     )
-    o.boundary(
-        "本餐额度按日限额的三分之一折算，这是工程假设、不是权威标准，"
-        "可用 --sodium-cap / --meal-kcal 覆盖。"
-    )
+    # 覆盖参数按档位给：--sodium-cap 只对 sodium 生效，对其他档位是无效参数。
+    # 之前统一写「可用 --sodium-cap / --meal-kcal 覆盖」会让用户在控糖档
+    # 传 --sodium-cap 却发现毫无效果。
+    if profile.key == "sodium":
+        o.boundary(
+            "本餐额度按日限额的三分之一折算，这是工程假设、不是权威标准。"
+            "可用 --sodium-cap 覆盖（单位：毫克）。"
+        )
+    else:
+        o.boundary(
+            "本餐额度按日限额的三分之一折算，这是工程假设、不是权威标准。"
+            "可用 --meal-kcal 覆盖（单位：千卡）。"
+            + ("　本档位不适用 --sodium-cap。" if args.sodium_cap is not None else "")
+        )
     for c in getattr(profile, "caveats", ()):
         o.boundary(c)
     o.blank()
@@ -303,13 +361,24 @@ def cmd_plan(args) -> int:
 
 
 def _nutrition_from(toon: Any):
+    """把 list-nutrition-foods 的返回转成 NutritionItem 列表。
+
+    TOON 文本解析不出任何行时抛可见错误，而不是静默返回空列表 ——
+    静默返回会让 plan 变成「本次匹配到营养数据的餐品 0 项」，
+    用户完全看不出发生了什么。
+    """
     from .nutrition import from_toon_rows
     if isinstance(toon, str):
-        return from_toon_rows(parse_toon(toon))
+        rows = parse_toon(toon)
+        if not rows:
+            raise McpError(
+                "list-nutrition-foods 返回的格式无法识别（前 200 字符："
+                + repr(toon[:200]) + "）。已知格式为 TOON 紧凑表。")
+        return from_toon_rows(rows)
     if isinstance(toon, dict):
         inner = toon.get("data")
         if isinstance(inner, str):
-            return from_toon_rows(parse_toon(inner))
+            return _nutrition_from(inner)
         if isinstance(inner, list):
             return from_toon_rows(inner)
         if isinstance(inner, dict):
@@ -507,7 +576,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    # 公共参数挂在每个子命令上，这样 `--mode` 写在子命令前后都能用
+    # 公共参数挂在每个子命令上 —— 必须写在子命令之后（`plan --mode x`），
+    # 写在子命令之前（`--mode x plan`）会报 invalid choice
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--mode", default="plain", choices=list(render.MODES),
                         help="输出模式：screen-reader 读屏友好 / large-print 大字 / plain 普通")
@@ -524,9 +594,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("stores", parents=[common], help="查询门店（营业中优先 + 距离升序）")
     sp.add_argument("--city"), sp.add_argument("--keyword")
     sp.add_argument("--be-type", type=int, default=1)
-    sp.add_argument("--open-now", action="store_true", default=True)
+    sp.add_argument("--open-now", action=argparse.BooleanOptionalAction, default=True,
+                    help="营业中门店优先排序（--no-open-now 关闭，仅按距离）")
     sp.add_argument("--demo", action="store_true")
-    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_stores)
 
     sp = sub.add_parser("plan", parents=[common], help="主命令：按档位筛选可吃的餐品")
@@ -540,7 +610,6 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--min-kcal", type=float, default=60,
                     help="计入主餐建议的最低能量，低于此值归入甜品饮品")
     sp.add_argument("--demo", action="store_true")
-    sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_plan)
 
     sp = sub.add_parser("tweak", parents=[common], help="特制清单（价格影响 + 方向性钠提示）")

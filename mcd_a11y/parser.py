@@ -23,7 +23,11 @@ __all__ = ["extract_json", "parse_toon", "normalize_name", "coerce_scalar"]
 # data 字段内含裸换行，strict=True 会直接抛异常 —— 必须用 strict=False
 _DECODER = json.JSONDecoder(strict=False)
 
-_TOON_HEADER = re.compile(r"^\s*\[(\d+)\]\{([^}]*)\}\s*:")
+# 表头定位必须用 search而非 match：官方返回常带说明文字前缀（如
+# 「## Original Response」）或 UTF-8 BOM，match 会因 ^ 锚定失败而
+# 静默返回 0 条 —— 那会让 plan 悄悄变成「匹配到 0 项」，与本项目
+# 「绝不静默返回空」的原则直接冲突。re.M 让 ^ 也能匹配行首。
+_TOON_HEADER = re.compile(r"\[(\d+)\]\{([^}]*)\}\s*:", re.M)
 _NULL_TOKENS = {"null", "none", "", "-", "na", "n/a", "nan", "\\n"}
 
 
@@ -93,10 +97,12 @@ def parse_toon(data: str) -> list[dict]:
           猪柳麦满分,null,1288,308,16,16,24,781,213
 
     字段名从 header 动态读取 —— 官方调整字段顺序时不会静默错位。
+    表头定位用 search，允许说明文字前缀与 BOM 存在。
     """
     if not isinstance(data, str):
         return []
-    m = _TOON_HEADER.match(data)
+    # BOM 与首尾空白都不影响表头识别
+    m = _TOON_HEADER.search(data.lstrip("﻿ \t\r\n"))
     if not m:
         return []
     fields = [f.strip() for f in m.group(2).split(",")]

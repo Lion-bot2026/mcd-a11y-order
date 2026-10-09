@@ -144,11 +144,17 @@ def parse_stores(data: Any) -> list[StoreInfo]:
 def rank_stores(stores: list[StoreInfo], open_first: bool = True) -> list[StoreInfo]:
     """可达性排序：营业中优先，其次距离升序。
 
+    open_first=False 时纯按距离升序 —— 打烊的门店不再被强推到末尾
+    （否则「关闭优先」会变成「打烊门店排最后」，与只按距离的预期相反）。
+
     确定性排序：无法判断营业状态或距离的排在后面，而不是靠猜测插到前面。
     """
     def key(s: StoreInfo):
         st = s.is_open
-        open_rank = 0 if (open_first and st is True) else (2 if st is False else 1)
+        if open_first:
+            open_rank = 0 if st is True else (2 if st is False else 1)
+        else:
+            open_rank = 0
         dist = s.distance if isinstance(s.distance, (int, float)) else float("inf")
         return (open_rank, dist)
     return sorted(stores, key=key)

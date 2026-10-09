@@ -64,11 +64,15 @@ class EnergyDerivedProfile(Profile):
 
 @dataclass
 class UserProfile(Profile):
-    """完全由用户自填，无默认值。"""
+    """完全由用户自填，无默认值。控能量档：本餐能量目标即本餐额度。"""
 
     def per_meal(self, meal_share: float = MEAL_SHARE_DEFAULT,
                  meal_kcal: float | None = None) -> float | None:
-        return None
+        # 能量档不做任何换算 —— 额度就是用户自己给的这一餐能量目标。
+        # 缺目标时返回 None，由调用方给出可操作提示。
+        if not meal_kcal or meal_kcal <= 0:
+            return None
+        return float(meal_kcal)
 
 
 PROFILES: dict[str, Profile] = {

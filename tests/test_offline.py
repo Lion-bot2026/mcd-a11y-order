@@ -452,3 +452,185 @@ class TestSequentialIndex(unittest.TestCase):
         for n in ("第一项", "第二项", "第三项"):
             self.assertIn(n, txt)
         self.assertNotIn("第 一 项", txt)
+
+
+# ---------------------------------------------------------------------------
+# Batch 2：审核报告发现的真实缺陷回归
+# ---------------------------------------------------------------------------
+class TestToonRobustness(unittest.TestCase):
+    """BUG-04：表头定位用了 match+^，带说明前缀或 BOM 时静默返回 0 条。
+
+    静默返回空会让 plan 变成「匹配到营养数据的餐品 0 项」，
+    与本项目「绝不静默返回空」的原则直接冲突。
+    """
+
+    def test_with_prefix_text(self):
+        from mcd_a11y.parser import parse_toon
+        toon = "## Original Response\n[1]{productName,sodium}:\n巨无霸,961"
+        self.assertEqual(len(parse_toon(toon)), 1)
+
+    def test_with_bom(self):
+        from mcd_a11y.parser import parse_toon
+        toon = "\ufeff[1]{productName,sodium}:\n巨无霸,961"
+        self.assertEqual(len(parse_toon(toon)), 1)
+
+    def test_pure_still_works(self):
+        from mcd_a11y.parser import parse_toon
+        self.assertEqual(len(parse_toon("[1]{productName,sodium}:\n巨无霸,961")), 1)
+
+    def test_empty_toon_raises_visible_error(self):
+        """非空字符串解析不出行时必须抛错，不能静默返回 []。"""
+        from mcd_a11y.cli import _nutrition_from
+        from mcd_a11y.mcp_client import McpError
+        with self.assertRaises(McpError):
+            _nutrition_from("这不是 TOON 表格，完全无法识别")
+
+
+class TestEnergyKjConversion(unittest.TestCase):
+    """BUG-06：energyKJ/energyKj 曾被直接当作 energy_kcal，高估 4.184 倍。"""
+
+    def test_kj_is_converted_not_copied(self):
+        from mcd_a11y.nutrition import from_toon_rows
+        r = from_toon_rows([{"productName": "猪柳麦满分", "energyKcal": None,
+                             "energyKj": 1288, "sodium": 781}])[0]
+        self.assertAlmostEqual(r.energy_kcal, 307.8, places=1)
+        self.assertAlmostEqual(r.sodium_density, 253.7, places=0)
+
+    def test_kcal_wins_over_kj(self):
+        from mcd_a11y.nutrition import from_toon_rows
+        r = from_toon_rows([{"productName": "x", "energyKcal": 308,
+                             "energyKj": 1288}])[0]
+        self.assertEqual(r.energy_kcal, 308.0)
+
+    def test_both_missing_stays_none(self):
+        """两者都缺必须是 None，绝不能是 0。"""
+        from mcd_a11y.nutrition import from_toon_rows
+        r = from_toon_rows([{"productName": "y", "sodium": 100}])[0]
+        self.assertIsNone(r.energy_kcal)
+
+
+class TestEnergyProfileUsable(unittest.TestCase):
+    """BUG-02：控能量档曾恒返回 None，4 个档位里有 1 个完全不可用。"""
+
+    def test_energy_profile_uses_meal_kcal(self):
+        from mcd_a11y.profiles import get_profile
+        self.assertEqual(get_profile("energy").per_meal(meal_kcal=600), 600.0)
+
+    def test_energy_profile_none_without_target(self):
+        from mcd_a11y.profiles import get_profile
+        self.assertIsNone(get_profile("energy").per_meal(meal_kcal=None))
+
+    def test_zero_kcal_is_rejected(self):
+        """0 千卡不是有效目标，必须当缺失处理。"""
+        from mcd_a11y.profiles import get_profile
+        self.assertIsNone(get_profile("energy").per_meal(meal_kcal=0))
+
+
+class TestStoreFallback(unittest.TestCase):
+    """BUG-05：门店打烊曾直接抛错中断，SKILL.md 却承诺「自动切下一家」。"""
+
+    def _stores(self):
+        from mcd_a11y.menu import StoreInfo
+        return [StoreInfo("1", "A店", business_status=True, distance=100),
+                StoreInfo("2", "B店", business_status=False, distance=200),
+                StoreInfo("3", "C店", business_status=True, distance=300)]
+
+    def _args(self):
+        return type("A", (), {"be_type": 1})()
+
+    @staticmethod
+    def _fake_out():
+        class _FakeOut:
+            def __init__(self):
+                self.notes = []
+
+            def note(self, t):
+                self.notes.append(t)
+
+            def blank(self):
+                pass
+        return _FakeOut()
+
+    @staticmethod
+    def _fake_client(closed=()):
+        class _FakeClient:
+            def __init__(self):
+                self.closed = set(closed)
+                self.calls = []
+
+            def call_business(self, name, arguments):
+                code = arguments.get("storeCode")
+                self.calls.append(code)
+                if code in self.closed:
+                    from mcd_a11y.mcp_client import McpError
+                    raise McpError("门店已关闭", code=600057)
+                return {"categories": [], "meals": {}}
+        return _FakeClient()
+
+    def test_skips_closed_store(self):
+        import mcd_a11y.cli as cli
+        c = self._fake_client({"1", "2"})
+        o = self._fake_out()
+        store, menu = cli._fetch_menu_skipping_closed(c, self._stores(),
+                                                      self._args(), o)
+        self.assertEqual(c.calls, ["1", "2", "3"])
+        self.assertEqual(store.store_code, "3")
+        self.assertTrue(any("已打烊" in n for n in o.notes))
+
+    def test_all_closed_gives_actionable_error(self):
+        import mcd_a11y.cli as cli
+        from mcd_a11y.mcp_client import McpError
+        c = self._fake_client({"1", "2", "3"})
+        with self.assertRaises(McpError) as ctx:
+            cli._fetch_menu_skipping_closed(c, self._stores(),
+                                            self._args(), self._fake_out())
+        self.assertEqual(ctx.exception.code, 600057)
+        self.assertIn("换一个地点关键词", str(ctx.exception))
+
+    def test_first_store_open_is_used_directly(self):
+        """第一家营业中时不应有多余的切换提示。"""
+        import mcd_a11y.cli as cli
+        c = self._fake_client()
+        o = self._fake_out()
+        store, _ = cli._fetch_menu_skipping_closed(c, self._stores(),
+                                                   self._args(), o)
+        self.assertEqual(c.calls, ["1"])
+        self.assertFalse(any("已切换" in n for n in o.notes))
+
+    def test_error_code_reaches_mcp_error(self):
+        """业务错误必须把 code 传进 McpError，否则 ERROR_HINTS 是死代码。"""
+        from mcd_a11y.mcp_client import ERROR_HINTS, McdMcpClient, McpError
+        client = McdMcpClient.__new__(McdMcpClient)
+        envelope = {"success": False, "code": 600057,
+                    "message": "门店可能已关闭", "data": None}
+        client.call_tool = lambda name, arguments=None: {
+            "structuredContent": envelope}
+        with self.assertRaises(McpError) as ctx:
+            client.call_business("query-meals", {})
+        self.assertEqual(ctx.exception.code, 600057)
+        self.assertEqual(ctx.exception.human(), ERROR_HINTS[600057])
+
+
+class TestRankStoresOpenFirstOff(unittest.TestCase):
+    """--no-open-now 关闭后必须纯按距离，打烊门店不能被强推到末尾。"""
+
+    def test_pure_distance_order(self):
+        from mcd_a11y.menu import StoreInfo, rank_stores
+        s = [StoreInfo("1", "远店", distance=100),
+             StoreInfo("2", "近店", distance=50),
+             StoreInfo("3", "打烊近店", business_status=False, distance=10)]
+        order = [x.store_name for x in rank_stores(s, open_first=False)]
+        self.assertEqual(order, ["打烊近店", "近店", "远店"])
+
+    def test_open_first_still_prioritises_open(self):
+        from mcd_a11y.menu import StoreInfo, rank_stores
+        s = [StoreInfo("1", "远店", distance=100),
+             StoreInfo("3", "打烊近店", business_status=False, distance=10)]
+        order = [x.store_name for x in rank_stores(s, open_first=True)]
+        self.assertEqual(order, ["远店", "打烊近店"])
+
+    def test_unknown_distance_goes_last(self):
+        from mcd_a11y.menu import StoreInfo, rank_stores
+        s = [StoreInfo("4", "距离未知"), StoreInfo("1", "有距离", distance=100)]
+        order = [x.store_name for x in rank_stores(s, open_first=False)]
+        self.assertEqual(order[-1], "距离未知")
