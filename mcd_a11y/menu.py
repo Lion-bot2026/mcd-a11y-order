@@ -47,7 +47,7 @@ class StoreInfo:
     store_name: str
     address: str | None = None
     distance: float | None = None          # 单位：米（官方字段，实测为米）
-    business_status: str | None = None
+    business_status: str | bool | None = None
     business_start: str | None = None
     business_end: str | None = None
     be_code: str | None = None
@@ -56,14 +56,30 @@ class StoreInfo:
 
     @property
     def is_open(self) -> bool | None:
-        """无法判断时返回 None —— 不打烊不等于营业中。"""
-        if not self.business_status:
+        """无法判断时返回 None —— 不打烊不等于营业中。
+
+        注意：官方 query-nearby-stores 实测返回的是布尔值（True/False），
+        早期版本用 str() 强转导致 False 变成字符串 "False"，无法被识别为「已打烊」。
+        这里必须先判断布尔，再回落字符串。
+        """
+        v = self.business_status
+        if v is None or v == "":
             return None
-        s = str(self.business_status)
-        if s in ("1", 1, True):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return bool(v)
+        s = str(v).strip()
+        low = s.lower()
+        if low in ("true", "1", "yes", "y", "open", "营业中", "营业"):
             return True
-        if s in ("0", 0, False):
+        if low in ("false", "0", "no", "n", "closed", "打烊", "休息", "已打烊", "未营业"):
             return False
+        if "营业" in s and "未" not in s:
+            return True
+        if "打烊" in s or "休息" in s or "closed" in low:
+            return False
+        return None
         low = s.lower()
         if "营业" in s and "未" not in s:
             return True
@@ -112,8 +128,8 @@ def parse_stores(data: Any) -> list[StoreInfo]:
             store_name=str(s.get("storeName") or s.get("name") or "").strip(),
             address=s.get("address"),
             distance=coerce_scalar(s.get("distance")),
-            business_status=(None if s.get("businessStatus") is None
-                             else str(s.get("businessStatus"))),
+            # 保留原始类型（实测为布尔），交由 StoreInfo.is_open 统一判定
+            business_status=s.get("businessStatus"),
             business_start=(None if s.get("businessStartTime") is None
                             else str(s.get("businessStartTime"))),
             business_end=(None if s.get("businessEndTime") is None
@@ -235,7 +251,7 @@ LIGHT_FOOD_KEYWORDS = (
     "红茶", "绿茶", "奶茶", "茶", "柠檬", "酸梅",
     "咖啡", "拿铁", "美式", "卡布", "浓缩", "可可",
     "牛奶", "豆浆", "果汁", "橙汁", "苹果汁", "椰",
-    "饮用水", "矿泉水", "气泡水",
+    "饮用水", "矿泉水", "气泡水", "美汁源", "橙橙", "柠柠", "纯悦", "怡泉",
     # 甜品
     "新地", "麦旋风", "旋酷", "圆筒", "甜筒", "冰淇淋", "冰激凌",
     "圣代", "朱古力", "巧克力", "慕斯", "布丁", "蛋糕", "派",

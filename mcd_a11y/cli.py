@@ -36,15 +36,14 @@ def _out(mode: str) -> Out:
     return Out(mode)
 
 
-def _open_store_note(o: Out, s) -> None:
+def _open_store_note(o: Out, s, index: int = 1, total: int | None = None) -> None:
     st = s.is_open
     state = "正在营业" if st is True else ("已打烊" if st is False else "营业状态未知")
     dist = f"，距离 {int(s.distance)} 米" if isinstance(s.distance, (int, float)) else ""
     hours = ""
     if s.business_end:
         hours = f"，营业至 {s.business_end}"
-    o.item(int(s.store_code[-1]) if s.store_code[-1].isdigit() else 1,
-           f"{s.store_name}。{state}{dist}{hours}")
+    o.item(index, f"{s.store_name}。{state}{dist}{hours}", total=total)
 
 
 def _split_meal_and_light(verdicts, min_kcal: float):
@@ -70,13 +69,30 @@ def _uname(mode: str, profile) -> str:
     return profile.unit_cn if mode == "screen-reader" else profile.unit_sym
 
 
-def _pick_combo(verdicts, size: int = 2):
-    """挑组合，避免选出「薯条小份 + 薯条大份」这种同款不同规格的搭配。"""
-    picked = []
+def _pick_combo(verdicts, size: int = 2, limit: float | None = None):
+    """挑组合。两条硬约束：
+
+    1. 避免「薯条小份 + 薯条大份」这种同款不同规格的搭配。
+    2. **合计不得超过本餐额度** —— 实测发现早期版本只校验单项，
+       会推荐「311 + 422 = 733 毫克」这种合计超出 666.7 毫克额度的组合。
+       对限钠人群来说，这种「每项都合格、加起来超标」的建议比不推荐更危险。
+
+    额度为 None 时只做第 1 条约束。
+    """
+    picked: list = []
+    total = 0.0
     for v in verdicts:
         name = v.link.menu_item.name
         if any(_share_stem(name, p.link.menu_item.name) for p in picked):
             continue
+        val = v.value if v.value is not None else None
+        if limit is not None:
+            # 任一成分数据缺失就不敢加总，宁可不推荐
+            if val is None:
+                continue
+            if total + val > limit:
+                continue
+            total += val
         picked.append(v)
         if len(picked) >= size:
             break
@@ -143,9 +159,10 @@ def cmd_stores(args) -> int:
         stores = parse_stores(raw)
 
     stores = rank_stores(stores, open_first=args.open_now)
-    o.step(f"共检索到 {len(stores)} 家门店，按营业状态与距离排列。")
-    for s in stores:
-        _open_store_note(o, s)
+    open_cnt = sum(1 for s in stores if s.is_open is True)
+    o.step(f"共检索到 {len(stores)} 家门店，其中 {open_cnt} 家正在营业。按营业状态与距离排列。")
+    for i, s in enumerate(stores, 1):
+        _open_store_note(o, s, index=i, total=len(stores))
     o.blank()
     o.boundary(NO_FACILITY_NOTE)
     print(o.text())
@@ -178,8 +195,8 @@ def cmd_plan(args) -> int:
     store = stores[0]
 
     o.step(f"第一步，选门店。共 {len(stores)} 家，优先营业中、按距离由近到远。")
-    for s in stores[:3]:
-        _open_store_note(o, s)
+    for i, s in enumerate(stores[:3], 1):
+        _open_store_note(o, s, index=i, total=min(3, len(stores)))
     o.boundary(NO_FACILITY_NOTE)
     o.blank()
 
@@ -242,22 +259,31 @@ def cmd_plan(args) -> int:
                 line += f"钠密度每百千卡 {unit(args.mode, n.sodium_density, '毫克', 'mg')}。"
         return line + _status_text(args.mode, v)
 
-    for i, v in enumerate([x for x in meal if x.status == "pass"][:args.top], 1):
-        o.item(i, _line(v))
-    over_n = min(3, len([x for x in meal if x.status == "over"]))
-    for j, v in enumerate([x for x in meal if x.status == "over"][-over_n:], args.top + 1):
-        o.item(j, _line(v))
+    # 序号必须是「显示序号」连续递增 —— 早期版本用 args.top 作为第二段起始值，
+    # 当达标项不足 top 时会跳号（第一、二、三、四、六…），读屏用户会以为漏了一项。
+    shown: list = []
+    passed_meal = [x for x in meal if x.status == "pass"][:args.top]
+    over_meal = [x for x in meal if x.status == "over"][-3:]
+    shown = passed_meal + over_meal
+    for i, v in enumerate(shown, 1):
+        o.item(i, _line(v), total=len(shown))
 
     unassessed = sum(1 for v in verdicts if v.status == "unknown")
     if unassessed:
         o.blank()
         o.boundary(f"另有 {unassessed} 项餐品未获取到营养数据，未纳入评估（既不当合格也不当不合格）。")
+    variant_n = sum(1 for v in shown
+                    if getattr(v.link, "match_type", "") == "variant")
+    if variant_n:
+        o.boundary(
+            f"其中 {variant_n} 项按品名匹配到多个规格（如「可乐」对应小杯/中杯/大杯），"
+            f"已取营养素最高的一档，属于保守高估，不是精确值。")
     if light:
         o.boundary(f"另有 {len(light)} 项甜品与饮品（按名称识别，或能量低于 "
                    f"{args.min_kcal:g} 千卡）未计入主餐建议。")
 
     # ---- 建议组合 ----
-    passed = _pick_combo([v for v in meal if v.status == "pass"], 2)
+    passed = _pick_combo([v for v in meal if v.status == "pass"], 2, limit=limit)
     if passed:
         o.blank()
         o.step("第三步，建议组合。")

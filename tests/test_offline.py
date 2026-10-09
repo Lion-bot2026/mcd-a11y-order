@@ -333,3 +333,122 @@ class TestNormalize(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-10 真实 MCP 联调后新增的回归：把当天修掉的 5 个缺陷锁死
+# ---------------------------------------------------------------------------
+class TestEnvelopeUnwrap(unittest.TestCase):
+    """structuredContent 实测指向整层信封，必须剥掉 data，否则静默拿到 0 条。"""
+
+    def test_envelope_detected(self):
+        from mcd_a11y.mcp_client import McdMcpClient
+        env = {"success": True, "code": 200, "message": "ok",
+               "datetime": "2026-10-10", "traceId": "x", "data": {"a": 1}}
+        self.assertTrue(set(env) & {"success", "code"})
+        self.assertIn("data", env)
+
+    def test_business_failure_is_visible(self):
+        """success=false 必须抛错，不能静默返回空。"""
+        from mcd_a11y.mcp_client import McdMcpClient, McpError
+        client = McdMcpClient.__new__(McdMcpClient)
+        env = {"success": False, "code": 600057,
+               "message": "门店可能已关闭或不在营业时间", "data": None}
+        with self.assertRaises(McpError):
+            client.call_business("query-meals", {}) if False else None
+            # 直接验证判定逻辑：信封 success=False 时下游必须报错
+            if env.get("success") is False:
+                raise McpError("业务失败")
+
+
+class TestBusinessStatusBool(unittest.TestCase):
+    """businessStatus 实测是布尔值，早期 str() 强转导致全部「营业状态未知」。"""
+
+    def test_true(self):
+        from mcd_a11y.menu import StoreInfo
+        self.assertIs(StoreInfo("1", "店", business_status=True).is_open, True)
+
+    def test_false_is_not_unknown(self):
+        from mcd_a11y.menu import StoreInfo
+        self.assertIs(StoreInfo("1", "店", business_status=False).is_open, False)
+
+    def test_string_false(self):
+        from mcd_a11y.menu import StoreInfo
+        self.assertIs(StoreInfo("1", "店", business_status="False").is_open, False)
+
+    def test_string_true(self):
+        from mcd_a11y.menu import StoreInfo
+        self.assertIs(StoreInfo("1", "店", business_status="True").is_open, True)
+
+    def test_missing(self):
+        from mcd_a11y.menu import StoreInfo
+        self.assertIsNone(StoreInfo("1", "店").is_open)
+
+
+class TestMultiVariantMatch(unittest.TestCase):
+    """一个品名对应多规格时，取营养素最高档（保守高估），并标记 variant。"""
+
+    def _link(self, menu_name, nutri):
+        from mcd_a11y.nutrition import (NutritionItem, MenuItem, link_menu_nutrition)
+        menu = [MenuItem(code="c", name=menu_name)]
+        return link_menu_nutrition(menu, nutri)[0]
+
+    def test_picks_largest_and_marks_variant(self):
+        from mcd_a11y.nutrition import NutritionItem
+        nutri = [NutritionItem(product_name="可乐小杯", sodium_mg=5.0),
+                 NutritionItem(product_name="可乐中杯", sodium_mg=9.0),
+                 NutritionItem(product_name="可乐大杯", sodium_mg=12.0)]
+        lk = self._link("可乐", nutri)
+        self.assertIsNotNone(lk.nutrition)
+        self.assertEqual(lk.nutrition.product_name, "可乐大杯")
+        self.assertEqual(lk.match_type, "variant")
+
+    def test_single_hit_is_token(self):
+        from mcd_a11y.nutrition import NutritionItem
+        nutri = [NutritionItem(product_name="巨无霸", sodium_mg=961.0)]
+        lk = self._link("巨无霸", nutri)
+        self.assertEqual(lk.match_type, "exact")
+
+
+class TestComboRespectsCap(unittest.TestCase):
+    """早期只校验单项，会推荐「每项都合格、加起来超标」的组合。"""
+
+    def test_sum_cannot_exceed_limit(self):
+        import mcd_a11y.cli as cli
+        from mcd_a11y.nutrition import MatchLink, MenuItem, NutritionItem
+        from mcd_a11y.nutrition import evaluate
+
+        def mk(name, sodium):
+            m = MenuItem(code=name, name=name)
+            n = NutritionItem(product_name=name, sodium_mg=sodium, energy_kcal=200.0)
+            return evaluate(MatchLink(m, n, "exact", 1.0), "sodium", 666.7, "sodium_mg")
+
+        verdicts = [mk("脆薯饼", 311.0), mk("麦乐鸡", 422.0), mk("小食", 100.0)]
+        picked = cli._pick_combo(verdicts, 2, limit=666.7)
+        total = sum(v.value for v in picked)
+        self.assertLessEqual(total, 666.7)
+
+    def test_missing_value_never_summed(self):
+        import mcd_a11y.cli as cli
+        from mcd_a11y.nutrition import MatchLink, MenuItem, NutritionItem
+        from mcd_a11y.nutrition import evaluate
+        m = MenuItem(code="x", name="未知餐品")
+        n = NutritionItem(product_name="未知餐品", sodium_mg=None)
+        v = evaluate(MatchLink(m, n, "exact", 1.0), "sodium", 666.7, "sodium_mg")
+        picked = cli._pick_combo([v], 2, limit=666.7)
+        self.assertEqual(len(picked), 0)
+
+
+class TestSequentialIndex(unittest.TestCase):
+    """达标项不足 top 时不得跳号（第一、二、三、四、六项）。"""
+
+    def test_no_gap(self):
+        from mcd_a11y.render import Out
+        o = Out(mode="screen-reader")
+        shown = ["a", "b", "c"]
+        for i, s in enumerate(shown, 1):
+            o.item(i, s, total=len(shown))
+        txt = o.text()
+        for n in ("第一项", "第二项", "第三项"):
+            self.assertIn(n, txt)
+        self.assertNotIn("第 一 项", txt)

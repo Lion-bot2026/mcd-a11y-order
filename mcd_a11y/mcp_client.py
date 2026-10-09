@@ -236,14 +236,25 @@ class McdMcpClient:
         L3 抛可见错误，绝不静默返回空
         """
         res = self.call_tool(name, arguments)
-        if isinstance(res, dict) and res.get("structuredContent") is not None:
-            return res["structuredContent"]
 
-        text = self._text_of(res)
-        obj = extract_json(text)
+        obj = None
+        if isinstance(res, dict) and res.get("structuredContent") is not None:
+            obj = res["structuredContent"]
         if obj is None:
-            raise McpError(f"{name} 未返回可解析 JSON（前 200 字符：{text[:200]!r}）")
-        if isinstance(obj, dict) and "data" in obj:
+            text = self._text_of(res)
+            obj = extract_json(text)
+            if obj is None:
+                raise McpError(f"{name} 未返回可解析 JSON（前 200 字符：{text[:200]!r}）")
+
+        # 实测：服务端对全部工具都返回同一层信封
+        # {success, code, message, datetime, traceId, data}，
+        # structuredContent 也指向这层信封 —— 必须统一剥掉，否则下游解析会静默拿到 0 条。
+        if isinstance(obj, dict) and "data" in obj and set(obj) & {"success", "code"}:
+            if obj.get("success") is False:
+                raise McpError(
+                    f"{name} 业务失败（code={obj.get('code')}，"
+                    f"message={obj.get('message')}）。"
+                    f"常见原因：门店不在营业时间。请换一家营业中的门店重试。")
             return obj["data"]
         return obj
 

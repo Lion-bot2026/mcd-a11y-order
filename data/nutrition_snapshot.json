@@ -1,10 +1,10 @@
 {
  "_meta": {
-  "source": "list-nutrition-foods（麦当劳中国官方 MCP）",
-  "captured_via": "社区公开快照 mcd-diet-guard/data/mcd_nutrition.json（该数据本身来自官方 MCP 实时返回）",
+  "source": "list-nutrition-foods（麦当劳中国官方 MCP，实时拉取）",
+  "endpoint": "https://mcp.mcd.cn",
   "captured_at": "2026-10-10",
-  "count": 156,
-  "note": "仅用于 --demo 离线演示。实际使用请以 MCP 实时返回为准；本快照不含门店名、Token 或任何个人信息。"
+  "count": 160,
+  "note": "官方接口实时返回的完整快照，仅用于 --demo 离线演示。不含 Token 或任何个人信息。"
  },
  "foods": [
   {
@@ -332,6 +332,33 @@
    "calcium": 0.0
   },
   {
+   "productName": "无糖可口可乐中杯",
+   "energyKcal": 0.0,
+   "protein": 0.0,
+   "fat": 0.0,
+   "carbohydrate": 1.0,
+   "sodium": 35.0,
+   "calcium": 0.0
+  },
+  {
+   "productName": "无糖可口可乐大杯",
+   "energyKcal": 0.0,
+   "protein": 0.0,
+   "fat": 0.0,
+   "carbohydrate": 1.0,
+   "sodium": 53.0,
+   "calcium": 0.0
+  },
+  {
+   "productName": "无糖可口可乐小杯",
+   "energyKcal": 0.0,
+   "protein": 0.0,
+   "fat": 0.0,
+   "carbohydrate": 0.0,
+   "sodium": 25.0,
+   "calcium": 0.0
+  },
+  {
    "productName": "大杯鲜萃咖啡",
    "energyKcal": 13.0,
    "protein": 1.0,
@@ -492,6 +519,15 @@
    "carbohydrate": 10.0,
    "sodium": 73.0,
    "calcium": 231.0
+  },
+  {
+   "productName": "纯悦",
+   "energyKcal": 0.0,
+   "protein": 0.0,
+   "fat": 0.0,
+   "carbohydrate": 0.0,
+   "sodium": 0.0,
+   "calcium": 0.0
   },
   {
    "productName": "苹果片",

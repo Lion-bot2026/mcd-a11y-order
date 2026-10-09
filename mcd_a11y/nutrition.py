@@ -128,12 +128,24 @@ def link_menu_nutrition(menu: Sequence[MenuItem],
             links.append(MatchLink(m, norm[k], "normalized", 0.95))
             continue
 
-        # 双向子串包含，长度差不超过 2 —— 覆盖「巨无霸」vs「巨无霸套餐」这类差异，
-        # 同时避免因「麦香鱼」包含于「麦香鱼堡」造成的过宽命中。
+        # 双向子串包含 —— 覆盖「巨无霸」vs「巨无霸套餐」这类差异。
+        # 实测发现长度差 2 的上限过窄：营养表里的品名普遍带规格后缀
+        # （「可乐」→ 可乐小杯/中杯/大杯、「薯条」→ 小/中/大薯条），差 2 会被全部漏掉。
         hits = [norm[kk] for kk in norm_keys
-                if (kk and (kk in k or k in kk)) and abs(len(kk) - len(k)) <= 2]
+                if (kk and (kk in k or k in kk)) and abs(len(kk) - len(k)) <= 4]
         if len(hits) == 1:
             links.append(MatchLink(m, hits[0], "token", 0.8))
+            continue
+
+        # 多规格命中（同一品名的小/中/大杯）：取营养素最高的那一档。
+        # 理由：对「限量」类约束而言，高估是安全的，低估才是危险的。
+        # 这类匹配会标记为 variant 并在输出中显式说明，不伪装成精确值。
+        if len(hits) > 1:
+            worst = max(hits, key=lambda n: (
+                n.sodium_mg if n.sodium_mg is not None else -1.0,
+                n.energy_kcal if n.energy_kcal is not None else -1.0,
+            ))
+            links.append(MatchLink(m, worst, "variant", 0.7))
             continue
 
         near = difflib.get_close_matches(k, norm_keys, n=1, cutoff=0.88)
