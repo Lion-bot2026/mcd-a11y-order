@@ -20,3 +20,6 @@ venv/
 *.log
 output/
 .DS_Store
+
+# 本地工具数据目录（含个人记忆与配置），绝不入库
+.workbuddy/
