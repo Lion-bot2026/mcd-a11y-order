@@ -1,0 +1,19 @@
+# 凭据 —— 绝不入库
+.env
+.env.*
+*.token
+mcp-config.json
+.secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 缓存与本地产物
+.cache/
+*.log
+output/
+.DS_Store
