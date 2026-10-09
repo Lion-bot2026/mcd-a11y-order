@@ -86,7 +86,7 @@
 |---|---|---|
 | `modification` 无营养字段 | 实测只有 8 个字段：`code / price / name / maxQuantity / minQuantity / selectedQuantity / selectedKey / unselectedKey` | 只给方向性提示，显著标注「非量化」，**不编造毫克数** |
 | 营养表无 `productCode` | `list-nutrition-foods` 只返回餐品名 | 按名称五层模糊匹配，匹配类型暴露在输出中 |
-| 营养表不覆盖套餐 | 只含单品 | 套餐拆 `roundList` 子项累加；无法拆分则声明 |
+| 营养表不覆盖套餐 | 只含单品 | 匹配不到即输出「未评估」，不做子项累加（实测未发现可用的套餐组合字段） |
 | 门店无无障碍设施数据 | 无坡道 / 无障碍卫生间 / 低位柜台字段 | 输出中声明「无法核实，请致电门店确认」 |
 | `order-list` 上限 10 笔 | 官方限制 | 本项目不依赖历史订单 |
 | 返回格式有四种 | 纯 JSON / 说明文字+JSON / Markdown / TOON 紧凑表 | 三级降级解析（见下） |

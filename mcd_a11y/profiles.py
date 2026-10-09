@@ -132,7 +132,10 @@ PROFILES: dict[str, Profile] = {
         daily_limit=None,
         daily_basis="由使用者自行指定本餐能量目标",
         source="用户自填，无外部权威口径",
-        verified=True,
+        # 标False 而不是 True：没有外部权威口径，就不能说「已核实」。
+        # 底层的核查动作由用户自己完成。
+        verified=False,
+        caveats=("本档位无外部权威口径，额度完全由用户自填，不构成营养建议。",),
     ),
 }
 
@@ -152,16 +155,24 @@ def get_profile(key: str) -> Profile:
 
 
 def describe_profiles() -> list[dict]:
-    """供 `profiles` 命令输出，含溯源与核实状态。"""
+    """供 `profiles` 命令输出，含溯源与核实状态。
+
+    「日限额数值」与「单位」分开给出，让调用方能按输出模式选
+    中文单位（读屏）或符号单位 —— 否则读屏模式会念出「2000 mg」。
+    """
     rows = []
     for p in PROFILES.values():
         rows.append({
             "档位": p.key,
             "名称": p.label,
+            "日限额数值": (f"{p.daily_limit:g}" if p.daily_limit else ""),
+            "单位中文": p.unit_cn,
+            "单位符号": p.unit_sym,
             "日限额": (f"{p.daily_limit:g} {p.unit_sym}" if p.daily_limit else "按能量目标推导"),
             "权威口径": p.daily_basis,
             "溯源": p.source,
             "已核实": "是" if p.verified else "否（需人工核实）",
-            "数据边界": "；".join(p.caveats) if p.caveats else "",
+            # caveats 各条自带句号，直接用「；」连接会拼出「。；」
+            "数据边界": "；".join(c.rstrip("。") for c in p.caveats) if p.caveats else "",
         })
     return rows

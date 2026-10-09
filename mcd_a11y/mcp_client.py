@@ -228,13 +228,23 @@ class McdMcpClient:
                            code=err.get("code"))
         return r.get("result", {}) or {}
 
-    def call_business(self, name: str, arguments: dict | None = None) -> Any:
+    def call_business(self, name: str, arguments: dict | None = None,
+                      *, confirm: bool = False) -> Any:
         """取业务数据。三级降级：
 
         L1 structuredContent —— 服务端预解析，最稳
         L2 从文本里抠 JSON（strict=False，data 字段含裸换行）
         L3 抛可见错误，绝不静默返回空
+
+        confirm=True 表示这是有副作用的写操作（建单、绑券、抽奖）。
+        本客户端不实现任何缓存，每个参数组合都会真实请求一次，
+        因此写操作天然不会被复用历史结果 —— confirm 只是把这个
+        约定显式化，避免将来有人加上缓存后 unnoticed地复用写结果。
         """
+        if name in WRITE_TOOLS and not confirm:
+            raise McpError(
+                f"{name} 是写操作，必须显式传 confirm=True 才会执行。"
+                f"本工具不会缓存任何结果，写操作每次都是真实请求。")
         res = self.call_tool(name, arguments)
 
         obj = None

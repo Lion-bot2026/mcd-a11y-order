@@ -80,7 +80,7 @@ WorkBuddy 拉取了 `mcd-no-pickle` 的真实抓包，确认
    毫无帮助。增加甜品/饮品识别，分区展示。
 3. **「第 一 项」会被读屏逐字读出** —— 改为连写「第一项」。
 4. **「限钠 0 毫克」读不通** —— 档位名称与数值名称分离，输出「钠 0 毫克」。
-5. **`--mode` 参数位置** —— 改为挂在子命令上，前后都能用。
+5. **`--mode` 参数位置** —— 挂在子命令上，必须写在子命令之后。
 6. **dataclass 字段顺序** —— 有默认值的字段不能排在无默认值字段之前。
 
 ## 六、最终交付
@@ -91,16 +91,16 @@ WorkBuddy 拉取了 `mcd-no-pickle` 的真实抓包，确认
 | `CONTEST_DECLARATION.md` | 参赛声明（**官方原文，未修改**） |
 | `MCP_INTEGRATION.md` | MCP Server / Tool / 调用流程 / 业务价值 / 数据边界 |
 | `mcp-config.example.json` | 脱敏配置，仅 `${MCD_MCP_TOKEN}` 占位符 |
-| `SKILL.md` | WorkBuddy / Agent Skill 定义，含六条无障碍输出规则 |
+| `SKILL.md` | WorkBuddy / Agent Skill 定义，含七条无障碍输出规则 |
 | `mcd_a11y/` | 零第三方依赖源码（仅 Python 标准库） |
-| `tests/test_offline.py` | 51 项离线自检，全部通过 |
-| `data/nutrition_snapshot.json` | 156 条真实营养快照（来自 `list-nutrition-foods`） |
+| `tests/test_offline.py` | 离线自检，全部通过 |
+| `data/nutrition_snapshot.json` | 160 条真实营养快照（来自 `list-nutrition-foods`） |
 
 ## 七、实测数据（用于 README 与传播）
 
-基于官方 MCP 真实返回的 156 条营养数据：
+基于官方 MCP 真实返回的 160 条营养数据：
 
-- 主食类（非甜品饮品、能量 ≥ 60 千卡）100 条；
+- 主食类（非甜品饮品、能量 ≥ 60 千卡）97 条；
 - 在 WHO 限钠口径下（单餐 667 毫克）达标 63 条（63%）；
 - 汉堡类 15 款，仅 2 款达标 —— **87% 超标**；
 - 能量 380–560 千卡的 22 项，钠 258 → 1343 毫克，**相差 5.2 倍**。
@@ -111,5 +111,5 @@ WorkBuddy 拉取了 `mcd-no-pickle` 的真实抓包，确认
 2. 拉取社区项目源码，核实 MCP 真实能力与数据边界（避免了编造营养数据）；
 3. 设计方案并完成全部代码实现（零依赖 MCP 客户端、TOON 解析、五层匹配、
    三种输出模式、中文货币读法）；
-4. 编写 51 项离线自检并全部通过；
+4. 编写离线自检并全部通过；
 5. 产出 README、MCP_INTEGRATION、SKILL 等全部交付文档。

@@ -80,12 +80,6 @@ class StoreInfo:
         if "打烊" in s or "休息" in s or "closed" in low:
             return False
         return None
-        low = s.lower()
-        if "营业" in s and "未" not in s:
-            return True
-        if "打烊" in s or "休息" in s or "closed" in low:
-            return False
-        return None
 
 
 @dataclass

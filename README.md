@@ -3,7 +3,7 @@
 [![M-CODE 参赛作品](https://img.shields.io/badge/M--CODE-参赛作品-FFC72C?style=flat-square)](https://github.com/M-China/mcd-developer-innovation-challenge)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![零第三方依赖](https://img.shields.io/badge/依赖-仅标准库-2ea44f?style=flat-square)](https://github.com/)
-[![tests](https://img.shields.io/badge/tests-51%20passed-brightgreen?style=flat-square)](./tests/test_offline.py)
+[![tests](https://img.shields.io/badge/tests-passed-brightgreen?style=flat-square)](./tests/test_offline.py)
 [![MCP](https://img.shields.io/badge/MCP-mcp.mcd.cn-blueviolet?style=flat-square)](https://mcp.mcd.cn)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square)](./LICENSE)
 
@@ -56,7 +56,7 @@ python3 -m mcd_a11y demo --mode screen-reader
 
 ### plain（普通 Markdown）
 
-适合开发者调试与管道处理，另有 `--json` 可用。
+其中 `profiles` 另有 `--json` 可用（仅档位元数据，不含营养判定）。
 
 ---
 
@@ -92,7 +92,7 @@ python3 -m mcd_a11y demo --mode screen-reader
 
 ## 无障碍设计说明
 
-读屏模式遵守六条硬规则（实现见 [`mcd_a11y/render.py`](./mcd_a11y/render.py)）：
+读屏模式遵守七条硬规则（实现见 [`mcd_a11y/render.py`](./mcd_a11y/render.py)）：
 
 | 规则 | 为什么 |
 |---|---|
@@ -155,7 +155,7 @@ python3 -m mcd_a11y demo --mode screen-reader
 其他已确认并规避的边界：
 
 - 营养表**不含 `productCode`**，只能按名称匹配 → 五层降级匹配，匹配类型暴露在输出中
-- 营养表**不覆盖套餐** → 拆子项累加，无法拆分则声明
+- 营养表**不覆盖套餐** → 匹配不到即输出「未评估」，不做子项累加
 - `order-list` **硬上限 10 笔** → 本项目不依赖历史订单
 - 响应格式有 4 种（纯 JSON / 说明文字+JSON / Markdown / TOON）→ 三级降级解析
 - `data` 字段含裸换行 → 必须用 `strict=False` 解析，否则直接抛异常
@@ -237,7 +237,7 @@ python3 -m unittest discover tests -v
 
 63 项离线自检，不需要 Token、不需要网络。重点覆盖：
 缺失值不当 0、未匹配不当合格、TOON 字段名动态读取、
-中文货币读法、编号连写、写操作不缓存、特制无营养字段。
+中文货币读法、编号连写、写操作必须显式确认、特制无营养字段。
 
 ---
 
@@ -248,7 +248,8 @@ python3 -m unittest discover tests -v
 - **核价返回 0 判定为错误。** `items` 字段名写成 `code` 而非 `productCode`
   不会报错、只会静默返回 `price=0`。本项目强制只用 `productCode`，
   并对返回 0 报错，绝不当作「免费」。
-- **写操作不缓存。** `create-order` / `auto-bind-coupons` 等一律绕过缓存。
+- **写操作必须显式确认。** `create-order` / `auto-bind-coupons` 等一律要求
+  `confirm=True`；本客户端不实现任何缓存，所有数据均为实时查询。
 - **无真实凭证。** 仓库只含环境变量占位符，`.gitignore` 屏蔽 `.env`。
 - **描述用户用尊重性表述**，不给视障或老年用户贴标签。
 

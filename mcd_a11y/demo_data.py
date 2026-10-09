@@ -2,7 +2,7 @@
 """离线演示数据。
 
 【来源透明】
-  * 营养数据：156 条，来自官方 MCP 工具 list-nutrition-foods 的真实返回
+  * 营养数据：160 条，来自官方 MCP 工具 list-nutrition-foods 的真实返回
     （经社区公开快照转存，字段与本工具返回完全一致）。
   * 特制样本：1 条真实抓包（酸黄瓜），字段值与 query-meal-detail 返回一致。
   * 门店与菜单：为演示构造，标注为合成样例，**不含真实门店名、地址或个人信息**。
@@ -28,7 +28,7 @@ DEMO_BANNER = (
 
 
 def load_nutrition() -> list[NutritionItem]:
-    """加载 156 条真实营养快照。"""
+    """加载 160 条真实营养快照。"""
     if not os.path.exists(_SNAPSHOT):
         raise SystemExit(f"缺少离线快照文件：{_SNAPSHOT}")
     with open(_SNAPSHOT, encoding="utf-8") as f:

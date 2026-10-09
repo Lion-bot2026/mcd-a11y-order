@@ -111,12 +111,19 @@ def _share_stem(a: str, b: str) -> bool:
 
 
 def _status_text(mode: str, v) -> str:
+    """给出判定结语（不带前导标点，由调用方决定如何衔接）。
+
+    超出项必须播报「超出多少」—— 只说「高于参考值」的话，听者无法判断
+    是超出一点还是超出两倍，这个差别决定了要不要换一家店。
+    large-print 与 screen-reader 一样用文字，避免读屏/放大后符号不可辨。
+    """
     if v.status == "pass":
-        return "可以选" if mode == "screen-reader" else "✓ 通过"
+        return " ✓ 通过" if mode == "plain" else "。可以选"
     if v.status == "over":
-        over = unit(mode, v.over_by, v.link and "", "")
-        return "超出额度，不建议" if mode == "screen-reader" else "✗ 超出"
-    return "数据缺失，未评估" if mode == "screen-reader" else "— 未评估"
+        if mode == "plain":
+            return " ✗ 高于参考值"
+        return f"。高于本餐参考值，超出 {unit(mode, v.over_by, '毫克', 'mg')}，请换其他选择"
+    return " — 未评估" if mode == "plain" else "。数据缺失，未评估"
 
 
 # --------------------------------------------------------------------------
@@ -131,8 +138,15 @@ def cmd_profiles(args) -> int:
         print(json.dumps(rows, ensure_ascii=False, indent=2))
         return 0
     for i, r in enumerate(rows, 1):
-        o.step(f"第 {int_to_cn(i)} 档，{r['名称']}（{r['档位']}）")
-        o.note(f"日限额：{r['日限额']}")
+        # 编号必须连写（output-rules.md 的第一条硬规则）——
+        # f"第 {int_to_cn(i)} 档"会被读屏逐字念成「第 一 档」
+        o.item(i, f"{r['名称']}，档位 {r['档位']}。", total=len(rows))
+        # 单位按输出模式选：读屏模式必须用中文单位，不能念「2000 mg」
+        unit_txt = (r["单位中文"] if args.mode == "screen-reader" else r["单位符号"])
+        if r["日限额数值"]:
+            o.note(f"日限额：{r['日限额数值']} {unit_txt}")
+        else:
+            o.note(f"日限额：{r['日限额']}")
         o.note(f"权威口径：{r['权威口径']}")
         o.note(f"溯源：{r['溯源']}（已核实：{r['已核实']}）")
         if r["数据边界"]:
@@ -315,16 +329,26 @@ def cmd_plan(args) -> int:
                      f"{profile.value_cn} {val}。")
             if profile.key == "sodium" and n.sodium_density is not None:
                 line += f"钠密度每百千卡 {unit(args.mode, n.sodium_density, '毫克', 'mg')}。"
-        return line + _status_text(args.mode, v)
+        st = _status_text(args.mode, v)
+        # 中文短语自带句首「。」，符号形式自带前导空格 —— 两种都已处理好衔接，
+        # 这里统一去掉 line 末尾句号再拼，避免出现「。。」或「249mg✓」。
+        return line.rstrip("。") + st
 
     # 序号必须是「显示序号」连续递增 —— 早期版本用 args.top 作为第二段起始值，
     # 当达标项不足 top 时会跳号（第一、二、三、四、六…），读屏用户会以为漏了一项。
-    shown: list = []
-    passed_meal = [x for x in meal if x.status == "pass"][:args.top]
-    over_meal = [x for x in meal if x.status == "over"][-3:]
+    # large-print 模式必须收敛条目数（一次最多 3 项），否则「大字」名不副实。
+    page = 3 if args.mode == "large-print" else args.top
+    passed_meal = [x for x in meal if x.status == "pass"][:page]
+    over_meal = [x for x in meal if x.status == "over"][-1:] \
+        if args.mode == "large-print" else \
+        [x for x in meal if x.status == "over"][-3:]
     shown = passed_meal + over_meal
     for i, v in enumerate(shown, 1):
         o.item(i, _line(v), total=len(shown))
+    if len(meal) > len(shown):
+        o.boundary(f"另有 {len(meal) - len(shown)} 项主食未显示"
+                   f"（large-print 模式每次最多 {page} 项）。"
+                   f"需要完整列表请用 --mode plain 或 screen-reader。")
 
     unassessed = sum(1 for v in verdicts if v.status == "unknown")
     if unassessed:
