@@ -489,8 +489,9 @@ def cmd_demo(args) -> int:
         o.note(f"快照来源：{meta.get('source')}（{meta.get('captured_at')}）")
 
     o.blank()
-    o.note("接入真实 MCP：export MCD_MCP_TOKEN=你的Token，然后运行 "
-           f"{APP} plan --city 城市 --keyword 地点 --profile sodium")
+    o.note("接入真实 MCP：export MCD_MCP_TOKEN=你的Token，然后在仓库根目录运行 "
+           "python3 -m mcd_a11y plan --city 城市 --keyword 地点 --profile sodium"
+           "（或用 ./scripts/mcd-a11y plan ...，免 cd）")
     print(o.text())
     return 0
 

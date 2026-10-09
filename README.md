@@ -178,6 +178,18 @@ python3 -m mcd_a11y tweak  --store <门店编码> --code <餐品编码>
 python3 -m mcd_a11y quote  --store <门店编码> --items '[{"productCode":"xxx","quantity":1}]'
 ```
 
+嫌 `python3 -m` 啰嗦，可以用仓库自带的包装脚本（免安装、自动处理路径，
+在任意目录下都能运行）：
+
+```bash
+./scripts/mcd-a11y demo --mode screen-reader
+./scripts/mcd-a11y plan --city 上海 --keyword 徐汇 --profile sodium --mode screen-reader
+```
+
+> 本项目不提供全局命令 `mcd-a11y`（刻意不引入 pyproject.toml 以保住
+> 「零第三方依赖、clone 就能跑」），所以请勿写成 `mcd-a11y plan ...`，那会
+> 得到 `command not found`。
+
 Token 只从环境变量读取。`.gitignore` 屏蔽 `.env`，仓库只含 `${MCD_MCP_TOKEN}` 占位符。
 
 ---

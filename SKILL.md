@@ -15,7 +15,7 @@ version: 1.1.0
 把麦当劳的营养表，变成读屏软件能完整读通的一句话。
 
 **核心原则：用确定性脚本替代表达，用沉默替代编造。**
-所有筛选、排序、单位换算、金额读法都由 `mcd-a11y` CLI 以代码完成 —— 不要用自然语言
+所有筛选、排序、单位换算、金额读法都由 `python3 -m mcd_a11y` CLI 以代码完成 —— 不要用自然语言
 自己拼数值。代码不会把「19.88」读成「十九点八八」，也不会把缺失值当成 0。
 
 ## 快速开始
@@ -27,6 +27,25 @@ python3 -m mcd_a11y plan --city 上海 --keyword 徐汇 --profile sodium --mode 
 ```
 
 `demo` 命令不需要 Token 即可跑通完整流程，用于在没有凭据时先演示效果。
+
+## 运行位置（重要）
+
+**必须在本仓库根目录下执行**，否则 `python3 -m mcd_a11y` 会报
+`No module named mcd_a11y`：
+
+```bash
+cd <本仓库根目录> && python3 -m mcd_a11y demo --mode screen-reader
+```
+
+不知道仓库根目录在哪时，可以先 `git clone` 再进入；或直接用仓库自带的包装脚本
+`./scripts/mcd-a11y`，它会自动解析仓库根目录、无需 `cd`：
+
+```bash
+./scripts/mcd-a11y demo --mode screen-reader
+```
+
+**不要使用 `mcd-a11y <子命令>` 这种写法** —— 本项目不提供全局命令行入口，
+照此执行会得到 `command not found`。
 
 ## 重要：先判断要不要用这个技能
 
@@ -52,9 +71,15 @@ python3 -m mcd_a11y plan --city 上海 --keyword 徐汇 --profile sodium --mode 
 ```
 
 ```bash
-mcd-a11y plan  --city 上海 --keyword 徐汇 --profile sodium --mode screen-reader
-mcd-a11y tweak --store <storeCode> --code <mealCode> --mode screen-reader
-mcd-a11y quote --store <storeCode> --items '[{"productCode":"1440","quantity":1}]'
+python3 -m mcd_a11y plan  --city 上海 --keyword 徐汇 --profile sodium --mode screen-reader
+python3 -m mcd_a11y tweak --store <storeCode> --code <mealCode> --mode screen-reader
+python3 -m mcd_a11y quote --store <storeCode> --items '[{"productCode":"1440","quantity":1}]'
+```
+
+也可以用仓库自带的包装脚本（免安装，自动处理路径）：
+
+```bash
+./scripts/mcd-a11y plan --city 上海 --keyword 徐汇 --profile sodium --mode screen-reader
 ```
 
 用户没给城市和关键词时**必须询问**，不要猜、不要填默认值。

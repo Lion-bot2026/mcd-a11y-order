@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# 麦麦读得到 · 命令行入口（无需安装、无需 pip）
+#
+# 存在的原因：本项目刻意不提供 pyproject.toml / console_scripts，
+# 以保住「零第三方依赖、clone 就能跑」的特点。代价是没有全局命令，
+# 必须写成 `python3 -m mcd_a11y`。这个脚本补上短命令的体验。
+#
+# 它会自动解析仓库根目录并注入 PYTHONPATH，因此在任意目录下都能运行：
+#     /path/to/mcd-a11y-order/scripts/mcd-a11y demo --mode screen-reader
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# 优先用 python3（README 声明 Python 3.9+），找不到时退回 python
+if command -v python3 >/dev/null 2>&1; then
+  PY=python3
+elif command -v python >/dev/null 2>&1; then
+  PY=python
+else
+  echo "麦麦读得到：未找到 python3，请先安装 Python 3.9 或更高版本。" >&2
+  exit 1
+fi
+
+exec env PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}" "$PY" -m mcd_a11y "$@"
