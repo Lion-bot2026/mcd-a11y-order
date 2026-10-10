@@ -170,7 +170,15 @@ def cmd_profiles(args) -> int:
     o.title("可用的饮食档位")
     rows = describe_profiles()
     if args.json:
-        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        # JSON 路径也必须带非官方声明与免责声明 —— 机器可读不等于可以没有边界。
+        # 这条路径完全绕过 _out()，是最容易漏掉声明的地方。
+        # 顶层从数组改为对象属破坏性变更，但 JSON 本就是给机器读的，
+        # 且项目内唯一消费者是自己写的测试。
+        payload = {
+            "_notice": ("本工具为 M-CODE 参赛作品，非麦当劳官方产品。" + DISCLAIMER),
+            "profiles": rows,
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
     for i, r in enumerate(rows, 1):
         # 编号必须连写（output-rules.md 的第一条硬规则）——
@@ -395,7 +403,7 @@ def cmd_plan(args) -> int:
         # 且 screen-reader 命中 --top 时也会截断。旧文案把两者都写成
         # 「large-print 模式最多 N 项」，与实际输出对不上。
         if args.mode == "large-print":
-            why = f"large-print 模式每次最多显示 {page} 项达标餐食与 1 条超标示例"
+            why = f"large-print 模式每次最多显示 {page} 项达标餐食与 1 条高于参考值示例"
         else:
             why = f"当前 mode 最多显示 {args.top} 项（可用 --top 调整）"
         o.boundary(f"另有 {len(meal) - len(shown)} 项主食未显示"

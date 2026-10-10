@@ -321,9 +321,13 @@ class TestTruncationNoticeAccuracy(unittest.TestCase):
         self.assertIsNotNone(m, f"large-print 省略提示格式不对：\n{out}")
         notice = m.group(1)
         self.assertIn("large-print", notice)
-        self.assertIn("超标示例", notice,
-                      "提示必须说明实际页大小是「N 项达标 + 1 条超标示例」，"
+        self.assertIn("高于参考值示例", notice,
+                      "提示必须说明实际页大小是「N 项低于参考值 + 1 条高于参考值示例」，"
                       "不能只说 N 项——旧文案与实际输出对不上")
+        # 「超标」是对产品的定性措辞，官方红线禁止。提示文案属用户可见内容，
+        # 不得出现。这里用词必须与 CLI 其余输出保持一致。
+        self.assertNotIn("超标", notice,
+                         "省略提示属用户可见输出，不得对产品定性")
         # 提示里的 N 必须等于代码里的 page（3），而不是最终展示条数（4）。
         n = int(re.search(r"最多显示 (\d+) 项", notice).group(1))
         self.assertEqual(n, 3)
@@ -523,6 +527,71 @@ class TestComplianceWording(unittest.TestCase):
             head = out.strip().splitlines()[0]
             self.assertIn("非麦当劳官方产品", head,
                           f"{argv} 首行必须声明非官方产品")
+
+    def test_public_materials_have_no_product_labeling(self):
+        """公开传播物料（README/海报/引导文档）也不得对产品定性。
+
+        合规风险最高的地方不是 CLI 输出，而是会被转发出去的文档与图片。
+        只测 CLI 会漏掉这一整类。
+        """
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        targets = [
+            "README.md",
+            "workbuddy.md",
+            "SKILL.md",
+            "docs/poster/scenario-poster.html",
+            "docs/poster/场景与上手引导.md",
+        ]
+        # 「不健康」在中文文档里可能作为「用户想解决的问题」出现，
+        # 但本项目一律改写为「猜钠含量高不高」这类中性陈述。
+        extra = ("不健康", "垃圾食品", "unhealthy")
+        for rel in targets:
+            path = os.path.join(root, rel)
+            if not os.path.exists(path):
+                continue
+            text = open(path, encoding="utf-8").read()
+            for bad in self.BANNED + extra:
+                self.assertNotIn(
+                    bad, text,
+                    f"{rel} 含给产品定性的措辞 {bad!r}（会被转发出去，风险最高）")
+
+    def test_no_unfounded_claims_about_users(self):
+        """不得替用户群体编造行为习惯。
+
+        「他们每天都在用终端」曾写进海报——中国视障用户主流是手机 + 读屏，
+        这类无依据断言一旦发到无障碍社区就会被当场反驳，反而伤可信度。
+        """
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for rel in ("README.md",
+                    "docs/poster/scenario-poster.html",
+                    "docs/poster/场景与上手引导.md"):
+            path = os.path.join(root, rel)
+            if not os.path.exists(path):
+                continue
+            text = open(path, encoding="utf-8").read()
+            for bad in ("每天都在用终端", "视障用户都", "盲人朋友都"):
+                self.assertNotIn(bad, text,
+                                 f"{rel} 含无依据的用户行为断言 {bad!r}")
+
+    def test_every_output_path_declares_non_official(self):
+        """包括 --json 这类绕过 _out() 的路径，都必须带非官方声明。
+
+        机器可读不等于可以没有边界。JSON 若缺声明，接入方会以为这是
+        麦当劳官方数据。
+        """
+        import json as _json
+        code, out = run(["profiles", "--json"])
+        self.assertEqual(code, 0)
+        data = _json.loads(out)
+        self.assertIn("_notice", data,
+                      "JSON 顶层必须有 _notice 声明，不能只是裸数组")
+        self.assertIn("非麦当劳官方产品", data["_notice"])
+        self.assertIn("不构成医疗", data["_notice"])
+        # 数据仍要能被取到，声明不能把内容挤掉
+        self.assertIsInstance(data.get("profiles"), list)
+        self.assertTrue(data["profiles"], "profiles 数据不应为空")
 
     def test_output_wording_is_neutral(self):
         for argv in (["demo", "--mode", "screen-reader"],

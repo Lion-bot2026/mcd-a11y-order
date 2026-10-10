@@ -54,7 +54,7 @@ python3 -m mcd_a11y demo --mode screen-reader
 ./scripts/mcd-a11y demo --mode large-print --profile sodium
 ```
 
-一次只给 3 项达标餐食 + 1 条超标示例，行间留白，不出现表格与符号。
+一次只给 3 项低于参考值的餐食 + 1 条高于参考值的示例，行间留白，不出现表格与符号。
 
 ### 什么情况下才需要 Token
 
@@ -62,9 +62,12 @@ python3 -m mcd_a11y demo --mode screen-reader
 
 ```bash
 export MCD_MCP_TOKEN=你的Token     # 从 https://open.mcd.cn/mcp 申请
-./scripts/mcd-a11y stores --keyword "望京"
-./scripts/mcd-a11y plan --keyword "望京" --profile sodium
+./scripts/mcd-a11y stores --city 北京 --keyword "望京"
+./scripts/mcd-a11y plan   --city 北京 --keyword "望京" --profile sodium
 ```
+
+> `--city` 与 `--keyword` **必须成对提供**，只给其一会返回 `600058`。
+> 这是因为「城市」与「地点」是 MCP 侧的两个独立入参，本工具不猜。
 
 ---
 
@@ -137,8 +140,8 @@ export MCD_MCP_TOKEN=你的Token     # 从 https://open.mcd.cn/mcp 申请
 | **高血压 / 糖尿病患者控钠控糖** | 菜单页根本不标营养成分，凭名字和图片猜 | 选定档位，按钠排序，明确念出超出多少毫克 |
 | **子女替父母点餐** | 字放大也没用，一屏几十个选项长辈选不出来 | 大字模式一次只给 3 项，留白、无符号 |
 
-一个容易被忽略的点：**对视障用户来说命令行不是门槛**——
-他们每天都在用终端，复制一条命令按回车，全程不需要鼠标、不需要看屏幕。
+一个容易被忽略的点：**读屏用户的日常本来就在键盘和文本里**——
+纯文本输出比图片菜单更友好。复制一条命令按回车，全程不需要鼠标、不需要看屏幕。
 这和「换成命令行就解决无障碍」的常见想象恰好相反。
 
 完整版见 [`docs/poster/场景与上手引导.md`](./docs/poster/场景与上手引导.md)，
@@ -271,7 +274,10 @@ mcd-a11y-order/
 ├── CONTEST_DECLARATION.md      # 参赛声明（官方原文，未修改）
 ├── MCP_INTEGRATION.md          # MCP 接入说明
 ├── SKILL.md                    # WorkBuddy / Agent Skill 定义
+├── workbuddy.md                # WorkBuddy 开发上下文
 ├── mcp-config.example.json     # 脱敏配置（仅占位符）
+├── LICENSE                     # MIT
+├── scripts/mcd-a11y            # 免安装短命令包装（自动注入 PYTHONPATH）
 ├── mcd_a11y/
 │   ├── mcp_client.py           # 零依赖 Streamable HTTP 客户端
 │   ├── parser.py               # 四种响应格式解析 + TOON 解析
@@ -281,7 +287,9 @@ mcd-a11y-order/
 │   ├── render.py               # 三种输出模式 + 中文货币读法
 │   ├── demo_data.py            # 离线演示数据
 │   └── cli.py                  # 命令行入口
-├── tests/test_offline.py       # 63 项离线自检
+├── references/                 # 按需加载：MCP 工具 / 阈值溯源 / 输出规则
+├── tests/                      # 单元 + 端到端 + 文档一致性，共 149 项
+├── docs/poster/                # 使用场景海报（HTML 源文件 + PNG/JPG）
 └── data/nutrition_snapshot.json
 ```
 
@@ -291,9 +299,16 @@ mcd-a11y-order/
 python3 -m unittest discover tests -v
 ```
 
-63 项离线自检，不需要 Token、不需要网络。重点覆盖：
-缺失值不当 0、未匹配不当合格、TOON 字段名动态读取、
-中文货币读法、编号连写、写操作必须显式确认、特制无营养字段。
+149 项离线自检，不需要 Token、不需要网络。分三个文件：
+`test_offline.py`（单元）、`test_cli_e2e.py`（端到端跑真实 CLI）、
+`test_docs_consistency.py`（文档与代码/数据一致性）。
+
+> 这个数字由 `tests/test_docs_consistency.py` 现场静态计数校验——
+> 以后增删测试而忘了改README，测试会直接红。
+
+重点覆盖：缺失值不当0、未匹配不当合格、TOON 字段名动态读取、
+中文货币读法、编号连写、写操作必须显式确认、特制无营养字段、
+超出量单位与档位一致、额度来源声明与算法一致。
 
 ---
 

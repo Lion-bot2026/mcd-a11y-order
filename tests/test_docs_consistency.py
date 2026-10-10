@@ -7,9 +7,15 @@
 
 设计要点：
 1. 数字只有一个来源：data/nutrition_snapshot.json。测试现场算，文档写错就红。
-2. 只锁「能从快照算出」的数（条数/达标数/汉堡数），不锁「测试数量」——
-   加一条测试就会让写死的数量立刻过期，那是条会自我破坏的断言。
-3. 不引入第三方依赖。
+2. 「测试数量」也现场算，但用**静态计数**而不是跑一次 unittest——
+   后者会在测试内部再次 discover，触发自己，形成无限递归。
+   早期版本选择「不锁测试数量」，理由是「加一条测试就过期」；
+   但那个选择的实际后果是 README 里的数字一直没人管（长期停在 63）。
+   现在改为：README 写明数量 + 测试现场静态计数校验，两者必须一致。
+3. stale 字典必须覆盖所有历史错误数字。docstring 声称能拦某类问题、
+   实现里却没有对应的 key，等于「测试的承诺大于实现」——比没有测试更危险，
+   因为它会让人误以为该类问题已被覆盖。
+4. 不引入第三方依赖。
 """
 import json
 import os
@@ -93,17 +99,32 @@ class TestDocsMatchSnapshot(unittest.TestCase):
         self.assertIn(str(f["burger_ok"]), readme)
 
     def test_no_stale_numbers(self):
-        """过期数字 156 / 100 条 / 63 条(63%) 不得残留在任何交付物里。"""
+        """过期数字不得残留在任何交付物里。
+
+        stale 的每个 key 都必须对应真实出现过的历史错误。
+        早期版本的 docstring 声称拦「63 条(63%)」，但字典里只有 156 和 100——
+        于是 workbuddy.md 的「达标 63 条（63%）」长期没人管。
+        承诺必须能兑现，否则测试反而给人虚假的安全感。
+        """
         stale = {
             "156": "旧版社区快照的条数（官方实时是 160）",
             "主食类（非甜品饮品、能量 ≥ 60 千卡）100": "旧版主食类计数（现为 97）",
+            "达标 63 条": "旧版达标计数（现为 60 条 / 62%）",
+            "63 条（63%）": "旧版达标计数（现为 60 条 / 62%）",
+            "63 项离线自检": "旧版测试计数（现为tests/ 下动态计数）",
+            "87% 超标": "旧版定性措辞（官方红线禁止对产品定性）",
+            "达标的仅": "旧版定性措辞（官方红线禁止对产品定性）",
         }
         targets = ("README.md", "workbuddy.md", "SKILL.md",
                    "MCP_INTEGRATION.md", "references/thresholds.md",
                    "references/mcp-tools.md", "references/output-rules.md",
-                   "mcd_a11y/demo_data.py")
+                   "mcd_a11y/demo_data.py",
+                   "docs/poster/scenario-poster.html",
+                   "docs/poster/场景与上手引导.md")
         offenders = []
         for fn in targets:
+            if not os.path.exists(os.path.join(ROOT, fn)):
+                continue
             for i, line in enumerate(_read(fn).splitlines(), 1):
                 for bad, why in stale.items():
                     if bad in line:
@@ -113,6 +134,81 @@ class TestDocsMatchSnapshot(unittest.TestCase):
                             continue
                         offenders.append(f"{fn}:{i} 含过期数字 {bad!r}（{why}）：{line.strip()[:60]}")
         self.assertEqual(offenders, [], "\n".join(offenders))
+
+
+class TestDocsTestCount(unittest.TestCase):
+    """README 声明的用例数必须等于 tests/ 下真实的测试函数数。
+
+    用静态计数而不是跑一次 unittest：后者会在测试内部再次 discover，
+    触发自己，无限递归。
+    """
+
+    def _actual_test_count(self) -> int:
+        total = 0
+        for f in sorted(os.listdir(os.path.join(ROOT, "tests"))):
+            if not (f.startswith("test_") and f.endswith(".py")):
+                continue
+            text = open(os.path.join(ROOT, "tests", f), encoding="utf-8").read()
+            total += len(re.findall(r"^\s*def test_", text, re.M))
+        return total
+
+    def test_static_count_matches_unittest_run(self):
+        """先确认静态计数本身可信——否则下面的守护是空转。"""
+        actual = self._actual_test_count()
+        self.assertGreater(actual, 100,
+                           "静态计数异常偏少，正则可能与测试写法不匹配")
+
+    def test_readme_test_count_matches_reality(self):
+        actual = self._actual_test_count()
+        readme = _read("README.md")
+        # 只匹配「N 项离线自检」与「共 N 项」，避免误抓其他数字
+        found = list(re.finditer(r"(\d+)\s*项(?:离线)?自检|共\s*(\d+)\s*项", readme))
+        self.assertTrue(found, "README 应声明测试数量")
+        for m in found:
+            n = m.group(1) or m.group(2)
+            self.assertEqual(
+                int(n), actual,
+                f"README.md 声明 {n} 项自检，实际 {actual} 项"
+                f"（增删测试后请同步更新 README）")
+
+
+class TestCityKeywordPair(unittest.TestCase):
+    """city 与 keyword 必须成对出现 —— 只给一个，接口会返回 600058。
+
+    `query-nearby-stores` 要求两个入参同时提供。文档示例若只写
+    --keyword，读者照抄就会失败。这是「文档承诺 = 代码实际」的一部分。
+    """
+
+    TARGETS = ("README.md", "SKILL.md", "MCP_INTEGRATION.md", "workbuddy.md",
+               "docs/poster/scenario-poster.html",
+               "docs/poster/场景与上手引导.md")
+
+    def _check(self, filename):
+        if not os.path.exists(os.path.join(ROOT, filename)):
+            self.skipTest(f"{filename} 不存在")
+        for lineno, line in enumerate(_read(filename).splitlines(), 1):
+            if re.search(r"(mcd_a11y|mcd-a11y)\s+(plan|stores)\b", line):
+                if "--keyword" in line:
+                    self.assertIn(
+                        "--city", line,
+                        f"{filename}:{lineno} 有 --keyword 却没 --city：{line.strip()}")
+
+    def test_all_docs(self):
+        for fn in self.TARGETS:
+            with self.subTest(file=fn):
+                self._check(fn)
+
+    def test_city_alone_also_paired(self):
+        """反向：给了 --city 也必须同时给 --keyword（否则同样 600058）。"""
+        for fn in self.TARGETS:
+            if not os.path.exists(os.path.join(ROOT, fn)):
+                continue
+            for lineno, line in enumerate(_read(fn).splitlines(), 1):
+                if re.search(r"(mcd_a11y|mcd-a11y)\s+(plan|stores)\b", line):
+                    if "--city" in line:
+                        self.assertIn(
+                            "--keyword", line,
+                            f"{fn}:{lineno} 有 --city 却没 --keyword：{line.strip()}")
 
 
 class TestNoPhantomCapabilities(unittest.TestCase):

@@ -304,7 +304,7 @@
 
   <!-- ========== 洞察 ========== -->
   <div class="insight">
-    对视障用户来说，命令行不是门槛 —— 他们每天都在用终端。<br>
+    读屏用户的日常本来就在键盘和文本里 —— 纯文本输出比图片菜单更友好。<br>
     复制一条命令、按回车，全程不需要鼠标、不需要看屏幕。
   </div>
 
@@ -333,7 +333,7 @@
       <div class="when"><b>时刻：</b>医生说要限钠，但麦当劳的菜单页面上根本不标营养成分。</div>
       <div class="pain">
         <span class="lbl">卡在哪</span>
-        凭名字和图片猜 unhealthy 或不健康。实测 15 款汉堡里只有 2 款钠含量低于 WHO 单餐参考值 —— 光看菜单选，选错的概率很高。
+        只能凭名字和图片猜钠含量高不高。实测 15 款汉堡里只有 2 款钠含量低于 WHO 单餐参考值 —— 光看菜单选，选错的概率很高。
       </div>
       <div class="fix">
         <span class="lbl">怎么用</span>
@@ -383,7 +383,7 @@
         <div class="idx">3</div>
         <div class="body">
           <div class="desc"><b>查你附近的真实门店</b> —— 这一步才需要 MCP Token</div>
-          <code class="cmd">export MCD_MCP_TOKEN=你的Token<br>./scripts/mcd-a11y plan --keyword "望京" --profile sodium</code>
+          <code class="cmd">export MCD_MCP_TOKEN=你的Token<br>./scripts/mcd-a11y plan --city 北京 --keyword "望京" --profile sodium</code>
           <div class="note">Token 在 open.mcd.cn/mcp 申请。也可以先跑 ./scripts/mcd-a11y profiles 看四个档位的阈值出处。</div>
         </div>
       </div>
