@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; background: #ECEFF3; font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; padding: 24px; }
+  .terminal { background: #1E1E2E; border-radius: 12px; padding: 20px 22px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); max-width: 760px; }
+  .titlebar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 0.5px solid #3a3a4e; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.r { background: #FF5F57; } .dot.y { background: #FEBC2E; } .dot.g { background: #28C840; }
+  .label { color: #888; font-size: 13px; margin-left: auto; font-family: "SF Mono", Menlo, monospace; }
+  pre { margin: 0; color: #E4E4E7; font-family: "SF Mono", "PingFang SC", Menlo, monospace; font-size: 15px; line-height: 1.65; white-space: pre; }
+</style>
+</head>
+<body>
+<div class="terminal">
+  <div class="titlebar">
+    <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+    <div class="label">python3 -m mcd_a11y demo --mode screen-reader --profile sodium</div>
+  </div>
+<pre>请注意：本工具为 M-CODE 参赛作品，非麦当劳官方产品。
+请注意：离线演示模式。营养数据为官方 MCP 真实返回的快照，
+        门店与菜单为合成样例，不代表当前真实供应与价格。
+
+营养快照共 160 条，来自官方 MCP 工具 list-nutrition-foods。
+当前档位，限钠。日限额 2000 毫克，本餐额度 666.7 毫克。
+
+这一餐可以选的餐食（钠由低到高）。共五项。
+  第一项，大杯玉米杯。能量 87 千卡。钠 2 毫克。可以选
+  第二项，迷你薯条。能量 106 千卡。钠 61 毫克。可以选
+  第三项，小薯条。能量 210 千卡。钠 120 毫克。可以选
+  第四项，中薯条。能量 289 千卡。钠 165 毫克。可以选
+  第五项，大薯条。能量 379 千卡。钠 216 毫克。可以选
+
+钠含量最高的几项（高于本餐参考值）。共三项。
+  第一项，双层吉士汉堡。能量 429 千卡。钠 1017 毫克。
+          高于本餐参考值 350 毫克。请换其他选择
+  第二项，麦辣鸡腿汉堡。能量 447 千卡。钠 1085 毫克。
+          高于本餐参考值 418 毫克。请换其他选择
+  第三项，麦香鱼。能量 363 千卡。钠 562 毫克。
+          接近本餐参考值。请结合其他餐食判断
+
+提示：本输出由 screen-reader 模式生成。
+      完整输出含 160 条营养快照。</pre>
+</div>
+</body>
+</html>
