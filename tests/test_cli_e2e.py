@@ -157,6 +157,81 @@ class TestProfileUsability(unittest.TestCase):
         self.assertIn("sodium", out)
 
 
+class TestDemoParityWithPlan(unittest.TestCase):
+    """BUG-07：`demo` 曾硬编码 sodium 且不带--profile。
+
+    demo 是「30 秒上手」的唯一入口，不支持档位就等于把项目的核心概念
+    挡在门外——想体验控糖/低脂的人必须先读代码。demo 与 plan 的参数面
+    必须一致。
+    """
+
+    def test_demo_accepts_profile(self):
+        for p in ("sodium", "carb", "fat", "energy"):
+            extra = [] if p == "sodium" else ["--meal-kcal", "600"]
+            code, out = run(["demo", "--mode", "screen-reader",
+                             "--profile", p] + extra)
+            self.assertEqual(code, 0, f"demo --profile {p} 应可用")
+            self.assertIn("当前档位", out)
+
+    def test_demo_missing_kcal_is_actionable(self):
+        code, out = run(["demo", "--profile", "carb"])
+        self.assertEqual(code, 1)
+        self.assertIn("--meal-kcal", out)
+        self.assertIn("sodium", out, "应提示可改用不依赖参数的钠档")
+
+    def test_demo_non_sodium_profile_does_not_leak_sodium_wording(self):
+        """控糖档用户不该被告知「钠由低到高」或听到钠密度。"""
+        code, out = run(["demo", "--mode", "screen-reader",
+                         "--profile", "carb", "--meal-kcal", "600"])
+        self.assertEqual(code, 0)
+        self.assertIn("碳水由低到高", out)
+        for wrong in ("钠由低到高", "钠密度", "钠含量最高的几项"):
+            self.assertNotIn(wrong, out,
+                             f"控糖档输出不应出现 {wrong}")
+
+    def test_demo_sodium_profile_keeps_density(self):
+        """钠档仍应保留钠密度——这是钠档真正有用的信息。"""
+        code, out = run(["demo", "--mode", "screen-reader",
+                         "--profile", "sodium"])
+        self.assertEqual(code, 0)
+        self.assertIn("钠密度", out)
+        self.assertIn("钠由低到高", out)
+
+
+class TestTruncationNoticeAccuracy(unittest.TestCase):
+    """BUG-08：省略提示与实际输出对不上。
+
+    旧文案恒称「large-print 模式每次最多 N 项」，但实际是 N 项达标 +
+    1 条超标示例，且 screen-reader 命中 --top 截断时也会走这段文案。
+    """
+
+    def test_large_print_notice_matches_actual_item_count(self):
+        code, out = run(["plan", "--demo", "--mode", "large-print"])
+        self.assertEqual(code, 0)
+        if "未显示" not in out:
+            self.skipTest("本次输出未被截断，无需校验省略提示")
+        m = re.search(r"另有 \d+ 项主食未显示（([^）]*?)）。", out)
+        self.assertIsNotNone(m, f"large-print 省略提示格式不对：\n{out}")
+        notice = m.group(1)
+        self.assertIn("large-print", notice)
+        self.assertIn("超标示例", notice,
+                      "提示必须说明实际页大小是「N 项达标 + 1 条超标示例」，"
+                      "不能只说 N 项——旧文案与实际输出对不上")
+        # 提示里的 N 必须等于代码里的 page（3），而不是最终展示条数（4）。
+        n = int(re.search(r"最多显示 (\d+) 项", notice).group(1))
+        self.assertEqual(n, 3)
+
+    def test_screen_reader_notice_blames_top_not_large_print(self):
+        """screen-reader 截断时不得提large-print，否则误导用户去换无效参数。"""
+        code, out = run(["plan", "--demo", "--mode", "screen-reader",
+                         "--top", "2"])
+        self.assertEqual(code, 0)
+        if "未显示" in out:
+            self.assertNotIn("large-print 模式每次最多", out,
+                             "screen-reader 截断原因不是 large-print 页大小")
+            self.assertIn("--top", out, "应提示可用 --top 调整")
+
+
 class TestRemovedFlagsAreGone(unittest.TestCase):
     """被删除的 flag 必须真的删干净，不能留下静默失效的参数。"""
 

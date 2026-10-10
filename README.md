@@ -32,6 +32,40 @@ python3 -m mcd_a11y demo --mode screen-reader
 
 没有 `pip install`，没有配置文件，不需要账号。一条命令就能看到完整效果。
 
+### 先不用 Token：把四个档位都试一遍
+
+`demo` 用的是官方 MCP 真实返回的营养快照 + 合成门店样例，**不需要 Token 就能体验全部四个饮食档位**：
+
+```bash
+# 限钠档：唯一不需要任何额外参数的档位
+./scripts/mcd-a11y demo --mode screen-reader --profile sodium
+
+# 控糖 / 低脂 / 控能量档需要给一个本餐能量目标（用来把克数上限推导出来）
+./scripts/mcd-a11y demo --mode screen-reader --profile carb   --meal-kcal 600
+./scripts/mcd-a11y demo --mode screen-reader --profile fat    --meal-kcal 600
+./scripts/mcd-a11y demo --mode screen-reader --profile energy --meal-kcal 600
+```
+
+输出会跟着档位走：切到控糖档，听到的就是「碳水由低到高」，不会出现与该档无关的钠数据。
+
+### 换成大字模式看看
+
+```bash
+./scripts/mcd-a11y demo --mode large-print --profile sodium
+```
+
+一次只给 3 项达标餐食 + 1 条超标示例，行间留白，不出现表格与符号。
+
+### 什么情况下才需要 Token
+
+以上都是离线演示，门店是合成样例。要查**你附近真实的营业中门店和当日菜单**，才需要 MCP Token：
+
+```bash
+export MCD_MCP_TOKEN=你的Token     # 从 https://open.mcd.cn/mcp 申请
+./scripts/mcd-a11y stores --keyword "望京"
+./scripts/mcd-a11y plan --keyword "望京" --profile sodium
+```
+
 ---
 
 ## 三种输出模式

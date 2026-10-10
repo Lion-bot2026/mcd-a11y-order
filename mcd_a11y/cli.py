@@ -361,9 +361,16 @@ def cmd_plan(args) -> int:
     for i, v in enumerate(shown, 1):
         o.item(i, _line(v), total=len(shown))
     if len(meal) > len(shown):
+        # 页大小不能只写page：large-print 实际是「page 项达标+ 1 条超标示例」，
+        # 且 screen-reader 命中 --top 时也会截断。旧文案把两者都写成
+        # 「large-print 模式最多 N 项」，与实际输出对不上。
+        if args.mode == "large-print":
+            why = f"large-print 模式每次最多显示 {page} 项达标餐食与 1 条超标示例"
+        else:
+            why = f"当前 mode 最多显示 {args.top} 项（可用 --top 调整）"
         o.boundary(f"另有 {len(meal) - len(shown)} 项主食未显示"
-                   f"（large-print 模式每次最多 {page} 项）。"
-                   f"需要完整列表请用 --mode plain 或 screen-reader。")
+                   f"（{why}）。"
+                   f"需要完整列表请用 --mode plain，或调大 --top。")
 
     unassessed = sum(1 for v in verdicts if v.status == "unknown")
     if unassessed:
@@ -535,11 +542,29 @@ def cmd_demo(args) -> int:
     nutrition = demo_data.load_nutrition()
     menu = demo_data.demo_menu(limit=60)
     links = link_menu_nutrition(menu, nutrition)
-    profile = get_profile("sodium")
-    limit = profile.per_meal()
-
+    # demo 也必须支持 --profile：否则想体验「控糖/低脂」的人只能改代码。
+    # 早期版本硬编码 sodium，导致 `--profile` 这个核心概念在 30 秒上手路径上
+    # 完全无法触达——这是可用性缺陷，不是特性差异。
+    profile = get_profile(args.profile)
+    limit = profile.per_meal(meal_kcal=args.meal_kcal)
+    if limit is None:
+        # 只有 sodium 档可能不依赖额外参数（FixedProfile 的 daily_limit
+        # 在正常情况下不会为 None），其余档位都必须给 --meal-kcal。
+        o.warn(f"档位「{profile.label}」需要 --meal-kcal 才能算出本餐额度，"
+               f"现在无法评估。请补上该参数，或改用 sodium 档位"
+               f"（sodium 档不依赖额外参数）。")
+        # 必须打印再返回，否则退出码 1 但零输出 —— 用户只看到「命令没反应」，
+        # 完全不知道缺什么参数。
+        print(o.text())
+        return 1
+    if profile.key == "sodium":
+        head = (f"当前档位，限钠。日限额 2000 毫克，"
+                f"本餐额度 {limit:g} 毫克（按三分之一折算，工程假设）。")
+    else:
+        head = (f"当前档位，{profile.label}。"
+                f"本餐额度 {limit:g} {profile.unit_cn}（由本餐能量目标推导）。")
     o.step(f"营养快照共 {len(nutrition)} 条，来自官方 MCP 工具 list-nutrition-foods。")
-    o.step(f"当前档位，限钠。日限额 2000 毫克，本餐额度 {limit:g} 毫克（按三分之一折算，工程假设）。")
+    o.step(head)
     o.blank()
 
     verdicts = [evaluate(lk, profile.key, limit, profile.field) for lk in links]
@@ -551,15 +576,19 @@ def cmd_demo(args) -> int:
 
     def _line(v, tail):
         n = v.link.nutrition
+        # 只播报当前档位关心的那个营养素。早期版本无条件播报钠密度，
+        # 于是控糖/低脂档的用户会听到与自己无关的钠数据。
         txt = (f"{v.link.menu_item.name}。"
                f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。"
-               f"钠 {unit(args.mode, n.sodium_mg, '毫克', 'mg')}。")
-        if n.sodium_density is not None:
+               f"{profile.value_cn} "
+               f"{unit(args.mode, getattr(n, profile.field, None), profile.unit_cn, profile.unit_sym)}。")
+        if profile.key == "sodium" and n.sodium_density is not None:
             txt += f"钠密度每百千卡 {unit(args.mode, n.sodium_density, '毫克', 'mg')}。"
         return txt + tail
 
     page = 3 if args.mode == "large-print" else 5
-    o.step("这一餐可以选的餐食（钠由低到高）。")
+    # 标题必须跟档位走，写死「钠由低到高」会让控糖/低脂用户看到无关描述。
+    o.step(f"这一餐可以选的餐食（{profile.value_cn}由低到高）。")
     passed_meal = [x for x in meal if x.status == "pass"][:page]
     for i, v in enumerate(passed_meal, 1):
         o.item(i, _line(v, "可以选"), total=len(passed_meal))
@@ -577,14 +606,17 @@ def cmd_demo(args) -> int:
             o.blank()
 
     o.blank()
-    o.step("钠含量最高的几项（高于本餐参考值）。")
+    # 同样要跟档位走：控糖档用户不该被告知「钠含量最高的几项」。
+    o.step(f"{profile.value_cn}含量最高的几项（高于本餐参考值）。")
     over = [x for x in meal if x.status == "over"][-3:]
     for i, v in enumerate(over, 1):
         n = v.link.nutrition
         o.item(i, f"{v.link.menu_item.name}。"
                   f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。"
-                  f"钠 {unit(args.mode, n.sodium_mg, '毫克', 'mg')}。"
-                  f"高于本餐参考值 {unit(args.mode, v.over_by, '毫克', 'mg')}。请换其他选择",
+                  f"{profile.value_cn} "
+                  f"{unit(args.mode, getattr(n, profile.field, None), profile.unit_cn, profile.unit_sym)}。"
+                  f"高于本餐参考值 "
+                  f"{unit(args.mode, v.over_by, profile.unit_cn, profile.unit_sym)}。请换其他选择",
                total=len(over))
 
     o.blank()
@@ -622,6 +654,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="输出模式：screen-reader 读屏友好 / large-print 大字 / plain 普通")
 
     sp = sub.add_parser("demo", parents=[common], help="离线演示，无需 Token")
+    sp.add_argument("--profile", default="sodium", choices=list(PROFILES),
+                    help="饮食档位：sodium 限钠 / carb 控糖 / fat 低脂 / energy 控能量")
+    sp.add_argument("--meal-kcal", type=float, help="本餐能量目标（推导控糖/低脂/控能量档位）")
     sp.add_argument("--min-kcal", type=float, default=60,
                     help="计入主餐建议的最低能量，低于此值归入甜品饮品")
     sp.set_defaults(func=cmd_demo)
