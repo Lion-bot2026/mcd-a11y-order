@@ -125,19 +125,39 @@ def _share_stem(a: str, b: str) -> bool:
     return a[:n] == b[:n] and abs(len(a) - len(b)) <= 3
 
 
-def _status_text(mode: str, v) -> str:
+def _kcal_text(args) -> str:
+    """把用户给的 --meal-kcal 说清楚，缺失时如实说「未提供」。
+
+    不能直接写 f"{args.meal_kcal:g}"—— 参数缺失时是 None，
+    格式化会抛 TypeError。此处不假设调用顺序已经过滤掉 None。
+    """
+    v = getattr(args, "meal_kcal", None)
+    if v is None:
+        return "（未提供 --meal-kcal，本餐额度无法评估）"
+    return f"{v:g} 千卡"
+
+
+def _status_text(mode: str, v, profile=None) -> str:
     """给出判定结语（不带前导标点，由调用方决定如何衔接）。
 
     超出项必须播报「超出多少」—— 只说「高于参考值」的话，听者无法判断
     是超出一点还是超出两倍，这个差别决定了要不要换一家店。
     large-print 与 screen-reader 一样用文字，避免读屏/放大后符号不可辨。
+
+    超出量的单位必须跟档位走：控糖档超出的是碳水（克）、低脂档是脂肪（克），
+    只有钠档才是毫克。早期版本硬编码「毫克」，于是控糖档会读成
+    「碳水 42 克，超出 27 毫克」—— 单位错配 1000 倍，
+    用户据此判断「只超出 27 毫克没关系」会得出完全相反的结论。
     """
     if v.status == "pass":
         return " ✓ 通过" if mode == "plain" else "。可以选"
     if v.status == "over":
         if mode == "plain":
             return " ✗ 高于参考值"
-        return f"。高于本餐参考值，超出 {unit(mode, v.over_by, '毫克', 'mg')}，请换其他选择"
+        cn, sym = ("毫克", "mg")
+        if profile is not None and profile.key != "sodium":
+            cn, sym = profile.unit_cn, profile.unit_sym
+        return f"。高于本餐参考值，超出 {unit(mode, v.over_by, cn, sym)}，请换其他选择"
     return " — 未评估" if mode == "plain" else "。数据缺失，未评估"
 
 
@@ -309,18 +329,25 @@ def cmd_plan(args) -> int:
         if profile.daily_limit else
         f"第二步，这一餐可以吃什么。当前档位，{profile.label}。本餐额度 {limit:g} {un}。"
     )
-    # 覆盖参数按档位给：--sodium-cap 只对 sodium 生效，对其他档位是无效参数。
-    # 之前统一写「可用 --sodium-cap / --meal-kcal 覆盖」会让用户在控糖档
-    # 传 --sodium-cap 却发现毫无效果。
+    # 额度来源按档位如实描述。三者的算法完全不同，不能共用一句
+    #「按日限额三分之一折算」—— 控糖/低脂/控能量的额度里根本没有日限额，
+    # 全部来自 --meal-kcal。这类错误属于「算法描述与算法不符」，
+    # 在本项目里和编造数据同级：用户会以为额度有权威口径。
     if profile.key == "sodium":
         o.boundary(
-            "本餐额度按日限额的三分之一折算，这是工程假设、不是权威标准。"
-            "可用 --sodium-cap 覆盖（单位：毫克）。"
+            "本餐额度按日限额 2000 毫克的三分之一折算，这是工程假设、"
+            "不是权威标准。可用 --sodium-cap 覆盖（单位：毫克）。"
+        )
+    elif profile.key == "energy":
+        o.boundary(
+            f"本餐额度就是你给出的本餐能量目标 {_kcal_text(args)}，"
+            "本工具不提供任何默认值、不做任何换算。"
         )
     else:
         o.boundary(
-            "本餐额度按日限额的三分之一折算，这是工程假设、不是权威标准。"
-            "可用 --meal-kcal 覆盖（单位：千卡）。"
+            f"本餐额度由你给出的本餐能量目标 {_kcal_text(args)}"
+            f"乘以该档位的供能比上限推导而来，这是工程口径、不是权威标准。"
+            "可用 --meal-kcal 调整。"
             + ("　本档位不适用 --sodium-cap。" if args.sodium_cap is not None else "")
         )
     for c in getattr(profile, "caveats", ()):
@@ -340,11 +367,14 @@ def cmd_plan(args) -> int:
         line = f"{v.link.menu_item.name}。"
         n = v.link.nutrition
         if n is not None:
-            line += (f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。"
-                     f"{profile.value_cn} {val}。")
+            # 能量档的 value_cn 就是「能量」。若前面再播报一次，
+            # 会变成「能量 87kcal。能量 87kcal。」——两句完全重复。
+            if profile.key != "energy":
+                line += f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。"
+            line += f"{profile.value_cn} {val}。"
             if profile.key == "sodium" and n.sodium_density is not None:
                 line += f"钠密度每百千卡 {unit(args.mode, n.sodium_density, '毫克', 'mg')}。"
-        st = _status_text(args.mode, v)
+        st = _status_text(args.mode, v, profile)
         # 中文短语自带句首「。」，符号形式自带前导空格 —— 两种都已处理好衔接，
         # 这里统一去掉 line 末尾句号再拼，避免出现「。。」或「249mg✓」。
         return line.rstrip("。") + st
@@ -578,13 +608,16 @@ def cmd_demo(args) -> int:
         n = v.link.nutrition
         # 只播报当前档位关心的那个营养素。早期版本无条件播报钠密度，
         # 于是控糖/低脂档的用户会听到与自己无关的钠数据。
-        txt = (f"{v.link.menu_item.name}。"
-               f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。"
-               f"{profile.value_cn} "
-               f"{unit(args.mode, getattr(n, profile.field, None), profile.unit_cn, profile.unit_sym)}。")
+        # 能量档的 value_cn 本身就是「能量」，不能再播报一次，
+        # 否则会读成「能量 87kcal。能量 87kcal。」。
+        parts = [f"{v.link.menu_item.name}。"]
+        if profile.key != "energy":
+            parts.append(f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。")
+        parts.append(f"{profile.value_cn} "
+                     f"{unit(args.mode, getattr(n, profile.field, None), profile.unit_cn, profile.unit_sym)}。")
         if profile.key == "sodium" and n.sodium_density is not None:
-            txt += f"钠密度每百千卡 {unit(args.mode, n.sodium_density, '毫克', 'mg')}。"
-        return txt + tail
+            parts.append(f"钠密度每百千卡 {unit(args.mode, n.sodium_density, '毫克', 'mg')}。")
+        return "".join(parts) + tail
 
     page = 3 if args.mode == "large-print" else 5
     # 标题必须跟档位走，写死「钠由低到高」会让控糖/低脂用户看到无关描述。
@@ -612,11 +645,12 @@ def cmd_demo(args) -> int:
     for i, v in enumerate(over, 1):
         n = v.link.nutrition
         o.item(i, f"{v.link.menu_item.name}。"
-                  f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。"
-                  f"{profile.value_cn} "
-                  f"{unit(args.mode, getattr(n, profile.field, None), profile.unit_cn, profile.unit_sym)}。"
-                  f"高于本餐参考值 "
-                  f"{unit(args.mode, v.over_by, profile.unit_cn, profile.unit_sym)}。请换其他选择",
+                  + ("" if profile.key == "energy"
+                     else f"能量 {unit(args.mode, n.energy_kcal, '千卡', 'kcal')}。")
+                  + f"{profile.value_cn} "
+                  + f"{unit(args.mode, getattr(n, profile.field, None), profile.unit_cn, profile.unit_sym)}。"
+                  + f"高于本餐参考值 "
+                  + f"{unit(args.mode, v.over_by, profile.unit_cn, profile.unit_sym)}。请换其他选择",
                total=len(over))
 
     o.blank()

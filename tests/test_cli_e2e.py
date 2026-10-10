@@ -179,6 +179,113 @@ class TestDemoParityWithPlan(unittest.TestCase):
         self.assertIn("--meal-kcal", out)
         self.assertIn("sodium", out, "应提示可改用不依赖参数的钠档")
 
+    def test_energy_profile_does_not_repeat_nutrient(self):
+        """控能量档的 value_cn 就是「能量」，不能再单独播报一次。
+
+        BUG-07b 修复「档位错配」时引入的回归：为了不再无条件播报钠，
+        改成无条件播报能量 + 当前档位营养素，结果 energy 档说了两遍。
+        """
+        for argv in (["demo", "--profile", "energy", "--meal-kcal", "600",
+                      "--mode", "screen-reader"],
+                     ["plan", "--demo", "--profile", "energy", "--meal-kcal", "600",
+                      "--mode", "screen-reader"]):
+            code, out = run(argv)
+            self.assertEqual(code, 0, f"{argv} 应可运行")
+            # 只看逐条餐食行：以「第N项」或「N. 」开头的行。
+            # 档位说明行（「当前档位，控能量。本餐额度 600 千卡」）里
+            # 「能量」出现两次是正确的 —— 一次是档位名，一次是单位。
+            item_lines = [l for l in out.splitlines()
+                          if re.match(r"\s*(第[一二三四五六七八九十]+项|共|\d+\.\s)", l)]
+            self.assertTrue(item_lines, f"{argv} 应有逐条餐食行")
+            for line in item_lines:
+                self.assertLessEqual(
+                    line.count("能量"), 1,
+                    f"{argv} 餐食行重复播报能量：{line.strip()}")
+                # 也不能出现「能量 X。能量」这种紧邻重复
+                self.assertNotRegex(line, r"能量[^。]*。\s*能量",
+                                    f"{argv} 出现「能量…能量」重复：{line.strip()}")
+
+
+class TestOverByUnitMatchesProfile(unittest.TestCase):
+    """超出量的单位必须跟档位走 —— 单位错配 1000 倍会误导判断。
+
+    这是本轮新发现的问题，清单未列出：`_status_text` 早期硬编码「毫克」，
+    于是控糖档会播报「碳水 42 克，超出 27 毫克」。听到「只超出 27 毫克」，
+    用户会判断「没关系」，而实际超出了 27 克碳水。
+    """
+
+    CASES = {
+        "sodium": ("毫克", None),
+        "carb": ("克", "600"),
+        "fat": ("克", "600"),
+        # 能量档给低额度才会出现超出项；600 千卡下没有超标餐食属合理结果，
+        # 所以单独用一个必然产生超出项的额度来验证单位。
+        "energy": ("千卡", "100"),
+    }
+
+    def test_over_by_uses_profile_unit(self):
+        for prof, (cn, kcal) in self.CASES.items():
+            argv = ["plan", "--demo", "--profile", prof, "--mode", "screen-reader"]
+            if kcal:
+                argv += ["--meal-kcal", kcal]
+            code, out = run(argv)
+            self.assertEqual(code, 0, prof)
+            overs = [l for l in out.splitlines() if "超出" in l]
+            self.assertTrue(overs, f"{prof} 档应至少有一条超出播报")
+            for line in overs:
+                m = re.search(r"超出\s*([\d.]+)\s*(\S+?)，", line)
+                self.assertIsNotNone(m, f"{prof} 超出播报格式异常：{line.strip()}")
+                self.assertEqual(m.group(2), cn,
+                                 f"{prof} 档超出量单位应为 {cn}，实际 {m.group(2)}：{line.strip()}")
+
+    def test_non_sodium_never_says_mg(self):
+        """反向断言：非钠档的超出播报里不得出现「毫克」。"""
+        for prof in ("carb", "fat", "energy"):
+            code, out = run(["plan", "--demo", "--profile", prof,
+                             "--meal-kcal", "600", "--mode", "screen-reader"])
+            self.assertEqual(code, 0, prof)
+            for line in out.splitlines():
+                if "超出" in line:
+                    self.assertNotIn("毫克", line,
+                                     f"{prof} 档把超出量说成毫克：{line.strip()}")
+
+
+class TestLimitProvenanceWording(unittest.TestCase):
+    """额度来源必须与算法一致 —— 这是本项目「数据诚实」的一部分。
+
+    控糖/低脂/控能量三档的 daily_limit 是 None，额度完全由 --meal-kcal 推导。
+    早期版本对所有档位统一说「按日限额的三分之一折算」，用户会以为
+    存在某个权威日限额口径 —— 而实际上这三个档位根本没有日限额。
+    """
+
+    def test_sodium_says_one_third(self):
+        code, out = run(["plan", "--demo", "--profile", "sodium"])
+        self.assertEqual(code, 0)
+        self.assertIn("三分之一", out)
+
+    def test_derived_profiles_do_not_claim_one_third(self):
+        for prof in ("carb", "fat", "energy"):
+            code, out = run(["plan", "--demo", "--profile", prof, "--meal-kcal", "600"])
+            self.assertEqual(code, 0, prof)
+            self.assertNotIn("三分之一", out,
+                             f"{prof} 档的额度来自 --meal-kcal，不该说「三分之一折算」")
+            self.assertIn("600", out, f"{prof} 档应说明额度来源是 600 千卡")
+
+    def test_energy_says_no_conversion(self):
+        """能量档额度就是用户给的值，必须声明「不做任何换算」。"""
+        code, out = run(["plan", "--demo", "--profile", "energy", "--meal-kcal", "600"])
+        self.assertEqual(code, 0)
+        self.assertIn("不提供任何默认值", out)
+        self.assertIn("不做任何换算", out)
+
+    def test_derived_profiles_point_at_meal_kcal(self):
+        """控糖/低脂的额度是 --meal-kcal × 供能比，必须如实说明推导链。"""
+        for prof in ("carb", "fat"):
+            code, out = run(["plan", "--demo", "--profile", prof, "--meal-kcal", "600"])
+            self.assertEqual(code, 0, prof)
+            self.assertIn("由你给出的本餐能量目标", out)
+            self.assertIn("供能比", out)
+
     def test_demo_non_sodium_profile_does_not_leak_sodium_wording(self):
         """控糖档用户不该被告知「钠由低到高」或听到钠密度。"""
         code, out = run(["demo", "--mode", "screen-reader",
