@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>麦麦读得到 · 使用场景海报</title>
+<style>
+  @page { margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1080px;
+    background: #14100e;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+                 "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { padding: 0; }
+
+  /* ---------- 顶部 ---------- */
+  .hero {
+    background: linear-gradient(160deg, #2b1d16 0%, #1a1210 100%);
+    padding: 56px 64px 48px;
+    border-bottom: 3px solid #ffc72c;
+  }
+  .nonofficial {
+    display: inline-block;
+    background: rgba(255,199,44,.12);
+    border: 1px solid rgba(255,199,44,.4);
+    color: #ffc72c;
+    font-size: 19px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 4px;
+    letter-spacing: .3px;
+    margin-bottom: 30px;
+  }
+  .title {
+    font-size: 76px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.1;
+    letter-spacing: -1px;
+  }
+  .title .hl { color: #ffc72c; }
+  .subtitle {
+    margin-top: 22px;
+    font-size: 30px;
+    color: #e8ddd4;
+    line-height: 1.55;
+    font-weight: 500;
+  }
+  .meta {
+    margin-top: 30px;
+    display: flex;
+    gap: 36px;
+    font-size: 20px;
+    color: #a8968a;
+  }
+  .meta span b { color: #e8ddd4; font-weight: 600; }
+
+  /* ---------- 洞察条 ---------- */
+  .insight {
+    background: #ffc72c;
+    color: #1a1210;
+    padding: 26px 64px;
+    font-size: 27px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  /* ---------- 场景区 ---------- */
+  .scenes { padding: 52px 64px 44px; }
+  .sec-label {
+    font-size: 19px;
+    color: #ffc72c;
+    font-weight: 700;
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+  }
+  .sec-title {
+    font-size: 42px;
+    color: #fff;
+    font-weight: 800;
+    margin-bottom: 40px;
+    line-height: 1.3;
+  }
+
+  .scene {
+    background: #1f1714;
+    border-radius: 12px;
+    padding: 34px 38px;
+    margin-bottom: 24px;
+    border-left: 5px solid #ffc72c;
+  }
+  .scene.alt { border-left-color: #7ec8e3; }
+  .scene.alt2 { border-left-color: #b8d99a; }
+
+  .who {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+  .who .n {
+    font-size: 20px;
+    color: #ffc72c;
+    font-weight: 800;
+    background: rgba(255,199,44,.13);
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .scene.alt .who .n { color: #7ec8e3; background: rgba(126,200,227,.13); }
+  .scene.alt2 .who .n { color: #b8d99a; background: rgba(184,217,154,.13); }
+  .who .t {
+    font-size: 34px;
+    color: #fff;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .when {
+    font-size: 23px;
+    color: #b8a89c;
+    margin: 14px 0 20px;
+    padding-left: 48px;
+    line-height: 1.5;
+  }
+  .when b { color: #e8ddd4; font-weight: 600; }
+
+  .pain {
+    background: rgba(255,255,255,.035);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-left: 48px;
+    font-size: 22px;
+    color: #c9b8ac;
+    line-height: 1.65;
+  }
+  .pain .lbl {
+    color: #e8836f;
+    font-weight: 700;
+    font-size: 20px;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .fix {
+    margin-left: 48px;
+    margin-top: 18px;
+    padding-left: 20px;
+    border-left: 3px solid rgba(255,199,44,.45);
+  }
+  .fix .lbl {
+    color: #b8d99a;
+    font-weight: 700;
+    font-size: 20px;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .fix .txt { font-size: 22px; color: #ddd0c6; line-height: 1.6; }
+
+  /* ---------- 怎么试 ---------- */
+  .howto {
+    background: #1f1714;
+    padding: 50px 64px 46px;
+  }
+  .steps { margin-top: 34px; }
+  .step {
+    display: flex;
+    gap: 22px;
+    margin-bottom: 30px;
+    align-items: flex-start;
+  }
+  .step .idx {
+    font-size: 22px;
+    font-weight: 800;
+    color: #14100e;
+    background: #ffc72c;
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step .body { flex: 1; }
+  .step .desc {
+    font-size: 22px;
+    color: #e8ddd4;
+    margin-bottom: 10px;
+    line-height: 1.55;
+  }
+  .step .desc b { color: #fff; font-weight: 700; }
+  code.cmd {
+    display: block;
+    background: #0d0908;
+    border: 1px solid #3a2c25;
+    border-radius: 7px;
+    padding: 15px 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 20px;
+    color: #7ee08a;
+    line-height: 1.55;
+    word-break: break-all;
+  }
+  .note {
+    font-size: 20px;
+    color: #9c8a7e;
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+
+  /* ---------- 数字 ---------- */
+  .facts {
+    background: #14100e;
+    padding: 48px 64px 44px;
+    border-top: 1px solid #2e211b;
+  }
+  .fact-grid { display: flex; gap: 22px; margin-top: 30px; }
+  .fact {
+    flex: 1;
+    background: #1f1714;
+    border-radius: 10px;
+    padding: 28px 24px;
+    text-align: center;
+  }
+  .fact .num {
+    font-size: 52px;
+    font-weight: 800;
+    color: #ffc72c;
+    line-height: 1.1;
+  }
+  .fact .unit { font-size: 24px; font-weight: 700; color: #ffc72c; }
+  .fact .cap {
+    font-size: 19px;
+    color: #a8968a;
+    margin-top: 12px;
+    line-height: 1.55;
+  }
+
+  /* ---------- 边界 ---------- */
+  .limits {
+    background: #1f1714;
+    padding: 42px 64px 46px;
+    border-top: 1px solid #2e211b;
+  }
+  .limits ul { list-style: none; margin-top: 22px; }
+  .limits li {
+    font-size: 21px;
+    color: #b8a89c;
+    line-height: 1.6;
+    padding-left: 26px;
+    position: relative;
+    margin-bottom: 13px;
+  }
+  .limits li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 11px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #6b5a4e;
+  }
+  .limits li b { color: #e8ddd4; font-weight: 600; }
+
+  /* ---------- 页脚 ---------- */
+  .foot {
+    background: #0d0908;
+    padding: 40px 64px 44px;
+    border-top: 1px solid #2e211b;
+  }
+  .repo {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 24px;
+    color: #ffc72c;
+    margin-bottom: 22px;
+    word-break: break-all;
+  }
+  .disclaimer {
+    font-size: 19px;
+    color: #8a786c;
+    line-height: 1.75;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ========== 顶部 ========== -->
+  <div class="hero">
+    <div class="nonofficial">非麦当劳官方产品 · M-CODE 参赛作品</div>
+    <div class="title">麦麦读得到</div>
+    <div class="subtitle">
+      把麦当劳的营养表，<br>
+      变成读屏软件<span class="hl">能完整念通</span>的一段话。
+    </div>
+    <div class="meta">
+      <span><b>160</b> 条营养数据 · 官方 MCP 实时返回</span>
+      <span><b>4</b> 个饮食档位</span>
+      <span><b>3</b> 种输出模式</span>
+      <span><b>零</b> 第三方依赖</span>
+    </div>
+  </div>
+
+  <!-- ========== 洞察 ========== -->
+  <div class="insight">
+    对视障用户来说，命令行不是门槛 —— 他们每天都在用终端。<br>
+    复制一条命令、按回车，全程不需要鼠标、不需要看屏幕。
+  </div>
+
+  <!-- ========== 场景 ========== -->
+  <div class="scenes">
+    <div class="sec-label">三 个 场 景</div>
+    <div class="sec-title">谁会在什么时候用它</div>
+
+    <!-- 场景 1 -->
+    <div class="scene">
+      <div class="who"><div class="n">1</div><div class="t">视障用户，想独自完成一次点餐</div></div>
+      <div class="when"><b>时刻：</b>下班回家路上，想给自己点一份，不想麻烦同事或家人代劳。</div>
+      <div class="pain">
+        <span class="lbl">卡在哪</span>
+        App 里的菜单是一张张图片，读屏软件念不出内容；不知道哪几家店还开着，也看不到哪些餐品自己能吃。
+      </div>
+      <div class="fix">
+        <span class="lbl">怎么用</span>
+        <span class="txt">用读屏模式跑一条命令，直接得到纯文本：先列出门店（营业状态 + 距离），再逐项念出餐品的能量、钠含量和能不能吃。</span>
+      </div>
+    </div>
+
+    <!-- 场景 2 -->
+    <div class="scene alt">
+      <div class="who"><div class="n">2</div><div class="t">高血压 / 糖尿病患者，每天要控钠控糖</div></div>
+      <div class="when"><b>时刻：</b>医生说要限钠，但麦当劳的菜单页面上根本不标营养成分。</div>
+      <div class="pain">
+        <span class="lbl">卡在哪</span>
+        凭名字和图片猜 unhealthy 或不健康。实测 15 款汉堡里只有 2 款钠含量低于 WHO 单餐参考值 —— 光看菜单选，选错的概率很高。
+      </div>
+      <div class="fix">
+        <span class="lbl">怎么用</span>
+        <span class="txt">选定「限钠」档位，它会按钠从低到高排，并明确念出每一项是否高于本餐参考值、超出多少毫克。只陈述数值关系，不给产品打分。</span>
+      </div>
+    </div>
+
+    <!-- 场景 3 -->
+    <div class="scene alt2">
+      <div class="who"><div class="n">3</div><div class="t">子女想替父母点一份</div></div>
+      <div class="when"><b>时刻：</b>爸妈上了年纪，看不清手机小字，也记不清自己想吃什么。</div>
+      <div class="pain">
+        <span class="lbl">卡在哪</span>
+        把字号调大也没用 —— 一屏还是几十个选项，老人选不出来。反过来，替他们点又不知道哪些适合长辈的身体情况。
+      </div>
+      <div class="fix">
+        <span class="lbl">怎么用</span>
+        <span class="txt">大字模式一次只给 3 个选项，条目之间留空行，不出现表格和符号。你念一句，或直接把手机递过去，都行。</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 怎么试 ========== -->
+  <div class="howto">
+    <div class="sec-label">怎 么 体 验</div>
+    <div class="sec-title">三条命令，不用申请任何东西</div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="idx">1</div>
+        <div class="body">
+          <div class="desc"><b>先看效果</b> —— 不需要 Token，营养数据是官方 MCP 真实返回的快照</div>
+          <code class="cmd">git clone https://github.com/Lion-bot2026/mcd-a11y-order.git<br>cd mcd-a11y-order<br>./scripts/mcd-a11y demo --mode screen-reader --profile sodium</code>
+          <div class="note">只想试控糖或控能量档？加 --profile carb --meal-kcal 600 即可。</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="idx">2</div>
+        <div class="body">
+          <div class="desc"><b>切成大字版看看</b> —— 一次 3 项、留白、无符号</div>
+          <code class="cmd">./scripts/mcd-a11y demo --mode large-print --profile sodium</code>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="idx">3</div>
+        <div class="body">
+          <div class="desc"><b>查你附近的真实门店</b> —— 这一步才需要 MCP Token</div>
+          <code class="cmd">export MCD_MCP_TOKEN=你的Token<br>./scripts/mcd-a11y plan --keyword "望京" --profile sodium</code>
+          <div class="note">Token 在 open.mcd.cn/mcp 申请。也可以先跑 ./scripts/mcd-a11y profiles 看四个档位的阈值出处。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 数字 ========== -->
+  <div class="facts">
+    <div class="sec-label">数 字 来 自 哪 里</div>
+    <div class="sec-title">全部来自官方 MCP 实时返回，不是我编的</div>
+
+    <div class="fact-grid">
+      <div class="fact">
+        <div><span class="num">160</span><span class="unit"> 条</span></div>
+        <div class="cap">营养成分快照<br>来自 list-nutrition-foods</div>
+      </div>
+      <div class="fact">
+        <div><span class="num">2</span><span class="unit"> / 15 款</span></div>
+        <div class="cap">汉堡中钠含量低于<br>WHO 单餐参考值的数量</div>
+      </div>
+      <div class="fact">
+        <div><span class="num">5.2</span><span class="unit"> 倍</span></div>
+        <div class="cap">能量相近的两餐<br>钠含量最大差距</div>
+      </div>
+      <div class="fact">
+        <div><span class="num">0</span><span class="unit"> 次</span></div>
+        <div class="cap">数据缺失时编造<br>一律说「未获取」</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 边界 ========== -->
+  <div class="limits">
+    <div class="sec-label">它 不 做 什 么</div>
+    <div class="sec-title">把话说清楚，比说得漂亮重要</div>
+    <ul>
+      <li><b>不自动下单、不代付。</b>下单必须手动加 <code style="font-family:ui-monospace,Menlo,monospace;color:#ffc72c">--confirm</code> 二次确认。</li>
+      <li><b>不提供门店无障碍设施信息。</b>麦当劳 MCP 不返回坡道、无障碍卫生间、低位柜台等数据，工具无法核实，请到店前致电门店确认。</li>
+      <li><b>不量化特制后的钠含量。</b>官方的特制接口不返回分项营养数据，所以只给方向性提示，不编造「去酱能减多少毫克」。</li>
+      <li><b>不提供低蛋白档位。</b>慢性肾脏病的蛋白质摄入需按体重与分期个体化确定，给固定克数会有误导风险。</li>
+      <li><b>不是医疗或营养建议。</b>只陈述「某个数值与某个参考值的高低关系」，不对产品本身作评价。</li>
+    </ul>
+  </div>
+
+  <!-- ========== 页脚 ========== -->
+  <div class="foot">
+    <div class="repo">github.com/Lion-bot2026/mcd-a11y-order</div>
+    <div class="disclaimer">
+      本项目为麦当劳程序员创意开发大赛（M-CODE）参赛作品，由参赛者独立开发，非麦当劳官方产品。
+      餐品信息、营养成分、价格及供应状态以麦当劳官方渠道的实时结果为准。<br>
+      项目输出仅供参考，不构成医疗、营养或其他专业建议。
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
