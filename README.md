@@ -2,8 +2,8 @@
 
 [![M-CODE 参赛作品](https://img.shields.io/badge/M--CODE-参赛作品-FFC72C?style=flat-square)](https://github.com/M-China/mcd-developer-innovation-challenge)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![零第三方依赖](https://img.shields.io/badge/依赖-仅标准库-2ea44f?style=flat-square)](https://github.com/)
-[![tests](https://img.shields.io/badge/tests-passed-brightgreen?style=flat-square)](./tests/test_offline.py)
+![零第三方依赖](https://img.shields.io/badge/依赖-仅标准库-2ea44f?style=flat-square)
+[![CI](https://github.com/Lion-bot2026/mcd-a11y-order/actions/workflows/ci.yml/badge.svg)](https://github.com/Lion-bot2026/mcd-a11y-order/actions/workflows/ci.yml)
 [![MCP](https://img.shields.io/badge/MCP-mcp.mcd.cn-blueviolet?style=flat-square)](https://mcp.mcd.cn)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square)](./LICENSE)
 
