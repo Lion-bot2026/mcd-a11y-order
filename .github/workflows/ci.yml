@@ -12,12 +12,16 @@ permissions:
 jobs:
   test:
     name: 离线测试 (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # README 声明的最低版本 + 当前主流版本
-        python-version: ["3.9", "3.12"]
+        # 3.9 是 README 声明的最低版本，只在仍提供该构建的 runner 上验证
+        include:
+          - python-version: "3.9"
+            os: ubuntu-22.04
+          - python-version: "3.12"
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
